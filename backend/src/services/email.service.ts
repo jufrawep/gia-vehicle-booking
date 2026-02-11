@@ -71,6 +71,220 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
   }
 };
 
+/**
+ * TRANSACTIONAL: Booking Confirmation
+ * Sends a detailed HTML receipt for vehicle reservations.
+ */
+export const sendBookingConfirmation = async (
+  email: string,
+  bookingDetails: {
+    bookingId: string;
+    vehicleName: string;
+    startDate: string;
+    endDate: string;
+    totalPrice: number;
+  },
+): Promise<void> => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { 
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background-color: white;
+        }
+        .header { 
+          background: linear-gradient(135deg, #0A1F44 0%, #1e3a8a 100%); 
+          color: white; 
+          padding: 30px 20px; 
+          text-align: center;
+          border-radius: 5px 5px 0 0;
+        }
+        .logo {
+          font-size: 28px;
+          font-weight: bold;
+          margin-bottom: 10px;
+        }
+        .content { 
+          padding: 30px; 
+        }
+        .details { 
+          background-color: #f8fafc; 
+          padding: 25px; 
+          border-left: 4px solid #00B4D8;
+          border-radius: 5px;
+          margin: 25px 0;
+        }
+        .detail-item {
+          margin-bottom: 10px;
+          display: flex;
+        }
+        .detail-label {
+          font-weight: 600;
+          width: 140px;
+          color: #4a5568;
+        }
+        .detail-value {
+          flex: 1;
+          color: #2d3748;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 40px; 
+          padding-top: 20px;
+          border-top: 1px solid #e2e8f0;
+          color: #718096; 
+          font-size: 14px;
+        }
+        .button { 
+          display: inline-block; 
+          padding: 14px 32px; 
+          background: linear-gradient(135deg, #00B4D8 0%, #0096c7 100%); 
+          color: white; 
+          text-decoration: none; 
+          border-radius: 8px; 
+          margin-top: 25px;
+          font-weight: 600;
+          font-size: 16px;
+          border: none;
+          cursor: pointer;
+        }
+        .greeting {
+          font-size: 18px;
+          color: #2d3748;
+          margin-bottom: 20px;
+        }
+        .thank-you {
+          margin-top: 30px;
+          font-style: italic;
+          color: #4a5568;
+        }
+        @media (max-width: 600px) {
+          .content { padding: 20px; }
+          .details { padding: 15px; }
+          .button { width: 100%; text-align: center; }
+          .detail-item { flex-direction: column; }
+          .detail-label { width: 100%; margin-bottom: 5px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo">GIA VEHICLE BOOKING</div>
+          <h1>Réservation Confirmée ✓</h1>
+        </div>
+        
+        <div class="content">
+          <div class="greeting">
+            Bonjour,<br>
+            Votre réservation a été confirmée avec succès !
+          </div>
+          
+          <p>Voici le récapitulatif de votre réservation :</p>
+          
+          <div class="details">
+            <h3 style="margin-top: 0; color: #0A1F44;">📋 Détails de la réservation</h3>
+            
+            <div class="detail-item">
+              <div class="detail-label">N° de réservation :</div>
+              <div class="detail-value"><strong>${bookingDetails.bookingId}</strong></div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Véhicule :</div>
+              <div class="detail-value">${bookingDetails.vehicleName}</div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Date de début :</div>
+              <div class="detail-value">${bookingDetails.startDate}</div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Date de fin :</div>
+              <div class="detail-value">${bookingDetails.endDate}</div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Prix total :</div>
+              <div class="detail-value"><strong>${bookingDetails.totalPrice.toLocaleString()} FCFA</strong></div>
+            </div>
+          </div>
+          
+          <p style="margin-bottom: 25px;">
+            Vous pouvez suivre l'état de votre réservation à tout moment depuis votre espace client.
+            Pour toute question, n'hésitez pas à nous contacter.
+          </p>
+          
+          <center>
+            <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/bookings" class="button">
+              👁️ Voir mes réservations
+            </a>
+          </center>
+          
+          <div class="thank-you">
+            <p>Merci de votre confiance,</p>
+            <p><strong>L'équipe GIA Vehicle Booking</strong></p>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <p>GIA Group - Douala, Cameroun</p>
+          <p>Téléphone: +237 672 969 799 | Email: contact@giagroup.net</p>
+          <p>© ${new Date().getFullYear()} GIA Group. Tous droits réservés.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+Réservation Confirmée - GIA Vehicle Booking
+
+Bonjour,
+
+Votre réservation a été confirmée avec succès !
+
+Détails de la réservation :
+- N° de réservation : ${bookingDetails.bookingId}
+- Véhicule : ${bookingDetails.vehicleName}
+- Date de début : ${bookingDetails.startDate}
+- Date de fin : ${bookingDetails.endDate}
+- Prix total : ${bookingDetails.totalPrice.toLocaleString()} FCFA
+
+Vous pouvez suivre l'état de votre réservation depuis votre espace client :
+${process.env.FRONTEND_URL || "http://localhost:3000"}/bookings
+
+Merci de votre confiance,
+
+L'équipe GIA Vehicle Booking
+GIA Group - Douala, Cameroun
+Téléphone: +237 672 969 799
+Email: contact@giagroup.net
+
+© ${new Date().getFullYear()} GIA Group. Tous droits réservés.
+  `;
+
+  await sendEmail({
+    to: email,
+    subject: `✅ Confirmation de réservation - ${bookingDetails.vehicleName}`,
+    html,
+    text,
+  });
+};
 
 /**
  * ONBOARDING: Welcome Email
@@ -417,6 +631,7 @@ export const sendPasswordResetEmail = async (
 
 export default {
   sendEmail,
+  sendBookingConfirmation,
   sendWelcomeEmail,
   sendPasswordResetEmail,
 };

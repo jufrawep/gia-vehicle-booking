@@ -6,7 +6,10 @@ import rateLimit from 'express-rate-limit';
 
 // Routes
 import authRoutes from './routes/auth.routes';
+import vehicleRoutes from './routes/vehicle.routes';
+import bookingRoutes from './routes/booking.routes';
 import userRoutes from './routes/user.routes';
+import newsletterRoutes from './routes/newsletter.routes';
 
 // Middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -78,7 +81,10 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/vehicles', vehicleRoutes);
+app.use('/api/bookings', bookingRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/newsletter', newsletterRoutes);
 
 // 404 handler
 app.use('*', (_req: Request, res: Response) => {

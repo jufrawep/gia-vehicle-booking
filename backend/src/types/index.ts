@@ -101,7 +101,7 @@ export interface ApiResponse<T = any> {
 
 /**
  * ANALYTICS & DASHBOARD TYPES
- * Aggregated data used for the Admin overview panel.
+ * Aggregated data used for the admin overview panel.
  */
 export interface DashboardStats {
   totalVehicles: number;
