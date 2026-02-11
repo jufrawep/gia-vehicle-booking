@@ -20,7 +20,7 @@ Build a comprehensive platform enabling users to:
 - Manage their personal dashboard and booking history.
 - Receive automated email confirmations.
 
-**Admin** can:
+**admin** can:
 - Manage the vehicle fleet
 - Validate/modify/cancel reservations
 - Consult statistics
@@ -101,8 +101,8 @@ Build a comprehensive platform enabling users to:
 - [x] Reservation history
 - [x] Reservation modification/cancellation
 
-#### Admin
-- [x] Admin dashboard
+#### admin
+- [x] admin dashboard
 - [x] Vehicle management (CRUD)
 - [x] Reservation list
 - [x] Reservation validation
