@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import { AuthRequest, JWTPayload } from '../types';
 import { AppError } from './error.middleware';
 
+const JWT_SECRET = process.env.JWT_SECRET || 'default_secret_change_in_production';
+
 /**
  * AUTHENTICATION MIDDLEWARE
  * Verifies the integrity of the JSON Web Token and attaches the user identity to the request object.
@@ -30,10 +32,8 @@ export const protect = async (
 
     // 2. Token Verification
     // Validates the signature and checks for expiration (exp claim).
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'default_secret'
-    ) as JWTPayload;
+    
+    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
 
     // 3. Request Enrichment
     // Attaching the decoded payload to the 'req.user' object for subsequent middlewares.

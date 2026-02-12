@@ -55,7 +55,7 @@ export const createBooking = asyncHandler(
     }
 
     // CONFLICT DETECTION ENGINE
-    // Checks if the requested dates overlap with any existing CONFIRMED or IN_PROGRESS bookings.
+    // Checks if the requested dates overlap with any existing confirmed or IN_PROGRESS bookings.
     const conflictingBookings = await prisma.booking.findMany({
       where: {
         vehicle_id: validatedData.vehicleId,
@@ -245,7 +245,7 @@ export const getAllBookings = asyncHandler(
  */
 export const getBookingById = asyncHandler(
   async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const userId = req.user!.id;
     const userRole = req.user!.role;
 
@@ -300,14 +300,14 @@ export const getBookingById = asyncHandler(
 
 /**
  * UPDATE BOOKING STATUS
- * Handles state transitions (e.g., Pending -> Confirmed).
+ * Handles state transitions (e.g., pending -> confirmed).
  * Constraints:
  * - Regular Users: Can only set status to 'cancelled'.
  * - admins: Can set any status.
  */
 export const updateBookingStatus = asyncHandler(
   async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const status = typeof req.body.status === 'string' ? req.body.status : undefined;
     const userId = req.user!.id;
     const userRole = req.user!.role;
