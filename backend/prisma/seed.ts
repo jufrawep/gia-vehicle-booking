@@ -166,7 +166,7 @@ async function main() {
     const inTenDays = new Date();
     inTenDays.setDate(today.getDate() + 10);
 
-    // Confirmed booking for User 1
+    // confirmed booking for User 1
     await prisma.booking.create({
       data: {
         user_id: users[0].id,
