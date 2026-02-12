@@ -100,7 +100,7 @@ export const getAllVehicles = asyncHandler(
  */
 export const getVehicleById = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const vehicle = await prisma.vehicle.findUnique({
       where: { id },
@@ -215,7 +215,7 @@ export const createVehicle = asyncHandler(
  */
 export const updateVehicle = asyncHandler(
   async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const updateData = req.body;
 
     const existingVehicle = await prisma.vehicle.findUnique({ where: { id } });
@@ -269,7 +269,7 @@ export const updateVehicle = asyncHandler(
  */
 export const deleteVehicle = asyncHandler(
   async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const activeBookings = await prisma.booking.count({
       where: {
@@ -298,7 +298,7 @@ export const deleteVehicle = asyncHandler(
  */
 export const checkAvailability = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { startDate, endDate } = req.query;
 
     if (!startDate || !endDate) {

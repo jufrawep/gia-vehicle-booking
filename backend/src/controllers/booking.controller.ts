@@ -245,7 +245,7 @@ export const getAllBookings = asyncHandler(
  */
 export const getBookingById = asyncHandler(
   async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const userId = req.user!.id;
     const userRole = req.user!.role;
 
@@ -307,7 +307,7 @@ export const getBookingById = asyncHandler(
  */
 export const updateBookingStatus = asyncHandler(
   async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const status = typeof req.body.status === 'string' ? req.body.status : undefined;
     const userId = req.user!.id;
     const userRole = req.user!.role;
