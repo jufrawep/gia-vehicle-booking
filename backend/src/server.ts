@@ -37,10 +37,14 @@ const corsOptions = {
       'http://127.0.0.1:3000',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:8080',
+      process.env.FRONTEND_URL,
+      "https://gia-vehicle-booking.vercel.app",
+      "https://gia-vehicle-booking-mocha.vercel.app",
+      "https://gia-vehicle-booking-test.vercel.app"
     ].filter(Boolean);
     }else{
       allowedOrigins = [
-      process.env.FRONTEND_URL 
+      process.env.FRONTEND_URL,"https://gia-vehicle-booking.vercel.app","https://gia-vehicle-booking-mocha.vercel.app","https://gia-vehicle-booking-test.vercel.app"
     ].filter(Boolean);
 
     }; 
@@ -79,7 +83,7 @@ app.get('/health', (_req: Request, res: Response) => {
     timestamp: new Date().toISOString()
   });
 });
-
+app.options('*', cors(corsOptions));
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/vehicles', vehicleRoutes);
