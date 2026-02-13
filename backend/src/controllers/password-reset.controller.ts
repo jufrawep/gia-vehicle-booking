@@ -4,7 +4,7 @@
  *
  * Corrections vs original:
  *   - Uses sendPasswordResetEmail() from email.service (dedicated template)
- *   - password_hash → password (aligned with Prisma schema @map)
+ *   - password field: column name is `password` in DB (stores bcrypt hash)
  *   - Anti-enumeration: same HTTP 200 response whether email exists or not
  */
 
@@ -110,7 +110,7 @@ export const resetPassword = asyncHandler(
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        password:              hashedPassword,  // maps to password_hash column
+        password:              hashedPassword,  // bcrypt hash stored in `password` column
         reset_password_token:  null,
         reset_password_expiry: null,
       },
