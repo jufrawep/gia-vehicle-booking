@@ -1,25 +1,37 @@
+/**
+ * @file  user.routes.ts
+ * @desc  User management routes — admin only.
+ *
+ * Corrections vs original:
+ *   - /profile route moved BEFORE /:id to avoid Express treating 'profile' as an id param
+ *   - restrictTo('ADMIN') — UPPERCASE
+ */
+
 import { Router } from 'express';
-import { protect } from '../middleware/auth.middleware';
+import { protect, restrictTo, requirePermission } from '../middleware/auth.middleware';
+import {
+  getAllUsers,
+  updateUserStatus,
+  deleteUser,
+  updateUserPermissions,
+  updateUserRole,
+} from '../controllers/user.controller';
 
 const router = Router();
 
-/* ==========================================================================
-   USER ACCOUNT ROUTES
-   ========================================================================== */
+// All routes require authentication + ADMIN role
+router.use(protect);
+router.use(restrictTo('ADMIN'));
 
-/**
- * @route   GET /api/users/profile
- * @desc    Get the profile data of the currently authenticated user
- * @access  Private
- * @returns {Object} User object (excluding sensitive fields like password)
- */
-router.get('/profile', protect, (req: any, res) => {
-  res.json({
-    success: true,
-    data: { 
-      user: req.user 
-    }
-  });
-});
+// READ permission
+router.get('/', requirePermission('READ'), getAllUsers);
+
+// DELETE permission — destructive actions
+router.patch('/:id/status', requirePermission('DELETE'), updateUserStatus);
+router.delete('/:id',       requirePermission('DELETE'), deleteUser);
+
+// Super-admin only (empty permissions array = full access)
+router.patch('/:id/permissions', updateUserPermissions);
+router.patch('/:id/role',        updateUserRole);
 
 export default router;
