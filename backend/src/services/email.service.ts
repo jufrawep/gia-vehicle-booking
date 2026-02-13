@@ -1,22 +1,19 @@
-import nodemailer from "nodemailer";
+import nodemailer from 'nodemailer';
 
-/**
- * EMAIL SERVICE CONFIGURATION
- * Powered by Nodemailer. Uses Gmail's SMTP service.
- * Note: For production, consider specialized services like SendGrid, Mailgun or AWS SES.
- */
+// Configuration du transporteur email pour Gmail
 const transporter = nodemailer.createTransport({
-  service: "gmail", // Utilise le service Gmail prédéfini
+  service: 'gmail', // Utilise le service Gmail prédéfini
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: process.env.EMAIL_PASS
   },
   tls: {
-    // Allows local development with self-signed certificates
-    rejectUnauthorized: false,
-  },
+    // Désactiver la vérification SSL pour le développement
+    rejectUnauthorized: false
+  }
 });
 
+// Interface pour les options d'email
 interface EmailOptions {
   to: string;
   subject: string;
@@ -25,16 +22,15 @@ interface EmailOptions {
 }
 
 /**
- * CORE EMAIL SENDER
- * A robust wrapper for sending emails with comprehensive error handling.
- * It features a "Simulated Mode" if environment variables are missing.
+ * Envoyer un email avec gestion d'erreur améliorée
  */
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
   try {
-    // 1. Configuration Validation
+    // Vérifier que les variables d'environnement sont définies
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.warn('EMAIL_USER or EMAIL_PASS missing. Falling back to Log Simulation.');
-      console.log(`[SIMULATED] To: ${options.to} | Subject: ${options.subject}`);
+      console.warn('⚠️ Variables email non configurées. Email simulé.');
+      console.log(`📧 Email simulé à ${options.to}: ${options.subject}`);
+      console.log(`📋 Contenu: ${options.text || options.html?.substring(0, 100)}...`);
       return;
     }
 
@@ -43,37 +39,52 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       to: options.to,
       subject: options.subject,
       text: options.text,
-      html: options.html,
+      html: options.html
     };
 
     const info = await transporter.sendMail(mailOptions);
-
+    console.log(`✅ Email sent to ${options.to}: ${info.messageId}`);
+    
     // Pour Gmail, afficher le lien de prévisualisation en dev
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== 'production') {
       console.log(`📎 Preview: https://mail.google.com/mail/u/0/#inbox`);
     }
   } catch (error: any) {
-    /**
-     * ERROR HANDLING STRATEGY
-     * We categorize errors (Auth, Network, Payload) to provide meaningful logs 
-     * without crashing the main thread.
-     */
-
+    console.error('❌ Email sending failed:', error.message);
+    
+    // Suggestions d'erreur courantes
     if (error.code === 'EAUTH') {
-      console.error('🔐 AUTHENTICATION ERROR: Verify App Passwords and 2FA settings.');
+      console.error('🔐 Problème d\'authentification. Vérifiez:');
+      console.error('   1. L\'authentification à 2 facteurs est activée');
+      console.error('   2. Vous utilisez un mot de passe d\'application');
+      console.error('   3. Les informations sont correctes dans .env');
+      console.error('   4. Essayez de créer un nouveau mot de passe d\'application ici:');
+      console.error('      https://myaccount.google.com/apppasswords');
     } else if (error.code === 'ESOCKET') {
-      console.error('🔌 CONNECTION ERROR: SMTP server unreachable.');
+      console.error('🔌 Problème de connexion. Vérifiez:');
+      console.error('   1. Votre connexion Internet');
+      console.error('   2. Les paramètres SMTP sont corrects');
+      console.error('   3. Les ports ne sont pas bloqués par un firewall');
+    } else if (error.code === 'EENVELOPE') {
+      console.error('📧 Problème avec l\'adresse email:');
+      console.error(`   Destinataire: ${options.to}`);
+      console.error('   Vérifiez que l\'adresse email est valide');
     }
-
-    // NON-BLOCKING: We warn the system but don't throw, 
-    // ensuring the user's booking/registration process can still complete.
-    console.warn(`⚠️ Process continued despite email failure to ${options.to}`);
+    
+    // Ne pas bloquer l'application en cas d'échec d'email
+    console.warn(`⚠️ Email non envoyé à ${options.to}, mais l'opération continue`);
+    
+    // En développement, on peut afficher ce qui aurait été envoyé
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('📝 Contenu qui aurait été envoyé:');
+      console.log(`   Sujet: ${options.subject}`);
+      console.log(`   HTML: ${options.html?.substring(0, 200)}...`);
+    }
   }
 };
 
 /**
- * TRANSACTIONAL: Booking Confirmation
- * Sends a detailed HTML receipt for vehicle reservations.
+ * Email de confirmation de réservation
  */
 export const sendBookingConfirmation = async (
   email: string,
@@ -83,7 +94,7 @@ export const sendBookingConfirmation = async (
     startDate: string;
     endDate: string;
     totalPrice: number;
-  },
+  }
 ): Promise<void> => {
   const html = `
     <!DOCTYPE html>
@@ -230,7 +241,7 @@ export const sendBookingConfirmation = async (
           </p>
           
           <center>
-            <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/bookings" class="button">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/bookings" class="button">
               👁️ Voir mes réservations
             </a>
           </center>
@@ -266,7 +277,7 @@ Détails de la réservation :
 - Prix total : ${bookingDetails.totalPrice.toLocaleString()} FCFA
 
 Vous pouvez suivre l'état de votre réservation depuis votre espace client :
-${process.env.FRONTEND_URL || "http://localhost:3000"}/bookings
+${process.env.FRONTEND_URL || 'http://localhost:3000'}/bookings
 
 Merci de votre confiance,
 
@@ -282,18 +293,14 @@ Email: contact@giagroup.net
     to: email,
     subject: `✅ Confirmation de réservation - ${bookingDetails.vehicleName}`,
     html,
-    text,
+    text
   });
 };
 
 /**
- * ONBOARDING: Welcome Email
- * Greets new users and introduces platform features.
+ * Email de bienvenue pour un nouvel utilisateur
  */
-export const sendWelcomeEmail = async (
-  email: string,
-  name: string,
-): Promise<void> => {
+export const sendWelcomeEmail = async (email: string, name: string): Promise<void> => {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -442,7 +449,7 @@ export const sendWelcomeEmail = async (
           </div>
           
           <center>
-            <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/vehicles" class="button">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/vehicles" class="button">
               🚀 Découvrir nos véhicules
             </a>
             
@@ -480,7 +487,7 @@ Votre compte a été créé avec succès et vous pouvez dès maintenant :
 - Bénéficier des meilleurs tarifs
 - Gérer vos réservations depuis votre espace personnel
 
-Commencez dès maintenant : ${process.env.FRONTEND_URL || "http://localhost:3000"}/vehicles
+Commencez dès maintenant : ${process.env.FRONTEND_URL || 'http://localhost:3000'}/vehicles
 
 Besoin d'aide ? Consultez notre FAQ ou contactez-nous.
 
@@ -496,23 +503,18 @@ L'équipe GIA Vehicle Booking
 
   await sendEmail({
     to: email,
-    subject: "🎉 Bienvenue sur GIA Vehicle Booking !",
+    subject: '🎉 Bienvenue sur GIA Vehicle Booking !',
     html,
-    text,
+    text
   });
 };
 
 /**
- * SECURITY: Password Reset
- * High-priority email containing sensitive recovery links.
+ * Email de réinitialisation de mot de passe
  */
-export const sendPasswordResetEmail = async (
-  email: string,
-  resetToken: string,
-  name: string,
-): Promise<void> => {
-  const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
-
+export const sendPasswordResetEmail = async (email: string, resetToken: string, name: string): Promise<void> => {
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+  
   const html = `
     <!DOCTYPE html>
     <html>
@@ -624,14 +626,15 @@ export const sendPasswordResetEmail = async (
 
   await sendEmail({
     to: email,
-    subject: "🔐 Réinitialisation de votre mot de passe GIA Vehicle Booking",
-    html,
+    subject: '🔐 Réinitialisation de votre mot de passe GIA Vehicle Booking',
+    html
   });
 };
 
+// Export par défaut
 export default {
   sendEmail,
   sendBookingConfirmation,
   sendWelcomeEmail,
-  sendPasswordResetEmail,
+  sendPasswordResetEmail
 };
