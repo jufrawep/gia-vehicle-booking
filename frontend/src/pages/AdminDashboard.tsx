@@ -1,100 +1,80 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FaCar, FaCalendar, FaMoneyBill, FaClock} from 'react-icons/fa';
+import { FaCar, FaCalendar, FaMoneyBill, FaClock } from 'react-icons/fa';
 import { bookingAPI, vehicleAPI } from '../services/api';
 import { Booking, DashboardStats, Vehicle } from '../types';
 import { Loader } from '../components/Loader';
+import { useTranslation } from '../i18n';
+import { logger } from '../utils/logger';
 
-/**
- * AdminDashboard Component
- * Provides administrative overview including global statistics, 
- * booking management, and fleet control.
- */
+const CTX = 'AdminDashboard';
+
 export const AdminDashboard = () => {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { t } = useTranslation();
+  const [stats,     setStats]     = useState<DashboardStats | null>(null);
+  const [bookings,  setBookings]  = useState<Booking[]>([]);
+  const [vehicles,  setVehicles]  = useState<Vehicle[]>([]);
+  const [loading,   setLoading]   = useState(true);
   const [activeTab, setActiveTab] = useState<'bookings' | 'vehicles'>('bookings');
 
-  /**
-   * Effect hook to trigger initial data fetching on component mount
-   */
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  /**
-   * Fetches all necessary dashboard data concurrently
-   * Synchronizes stats, bookings, and vehicle lists
-   */
   const fetchData = async () => {
     try {
       setLoading(true);
       const [statsRes, bookingsRes, vehiclesRes] = await Promise.all([
         bookingAPI.getStats(),
         bookingAPI.getAll(),
-        vehicleAPI.getAll()
+        vehicleAPI.getAll(),
       ]);
-
       setStats(statsRes.data.data);
       setBookings(bookingsRes.data.data.bookings);
       setVehicles(vehiclesRes.data.data.vehicles);
+      logger.info(CTX, 'Dashboard data loaded');
     } catch (error) {
       toast.error('Erreur lors du chargement des données');
+      logger.error(CTX, 'Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Updates the lifecycle status of a specific booking
-   * @param bookingId Target booking unique identifier
-   * @param newStatus New status string (pending, confirmed, cancelled, completed)
-   */
   const handleUpdateBookingStatus = async (bookingId: string, newStatus: string) => {
     try {
+      // newStatus comes from the <select> which already uses UPPERCASE values
       await bookingAPI.updateStatus(bookingId, newStatus);
       toast.success('Statut mis à jour');
-      fetchData(); // Refresh data to reflect status changes in stats
+      logger.info(CTX, 'Booking status updated', { bookingId, newStatus });
+      fetchData();
     } catch (error) {
       toast.error('Erreur lors de la mise à jour');
+      logger.error(CTX, 'Status update failed', { bookingId });
     }
   };
 
-  /**
-   * Permanently removes a vehicle from the fleet after user confirmation
-   * @param vehicleId Target vehicle unique identifier
-   */
   const handleDeleteVehicle = async (vehicleId: string) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce véhicule ?')) {
-      return;
-    }
-
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce véhicule ?')) return;
     try {
       await vehicleAPI.delete(vehicleId);
       toast.success('Véhicule supprimé');
+      logger.warn(CTX, 'Vehicle deleted', { vehicleId });
       fetchData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Erreur lors de la suppression');
+      logger.error(CTX, 'Delete vehicle failed', { vehicleId });
     }
   };
 
-  /**
-   * Maps technical status strings to UI badge components
-   * @param status The raw status string from the backend
-   * @returns JSX element representing the status badge
-   */
+  // FIXED: badges keyed by UPPERCASE status values
   const getStatusBadge = (status: string) => {
+    const s = status?.toUpperCase();
     const badges: Record<string, { color: string; text: string }> = {
-      pending: { color: 'bg-yellow-100 text-yellow-800', text: 'En attente' },
-      confirmed: { color: 'bg-green-100 text-green-800', text: 'Confirmée' },
-      cancelled: { color: 'bg-red-100 text-red-800', text: 'Annulée' },
-      completed: { color: 'bg-blue-100 text-blue-800', text: 'Terminée' }
+      PENDING:   { color: 'bg-yellow-100 text-yellow-800', text: t('booking.status.PENDING') },
+      CONFIRMED: { color: 'bg-green-100 text-green-800',   text: t('booking.status.CONFIRMED') },
+      CANCELLED: { color: 'bg-red-100 text-red-800',       text: t('booking.status.CANCELLED') },
+      COMPLETED: { color: 'bg-blue-100 text-blue-800',     text: t('booking.status.COMPLETED') },
     };
-
-    const badge = badges[status] || badges.pending;
-
+    const badge = badges[s] || badges.PENDING;
     return (
       <span className={`px-3 py-1 rounded-full text-sm font-semibold ${badge.color}`}>
         {badge.text}
@@ -102,148 +82,138 @@ export const AdminDashboard = () => {
     );
   };
 
-  if (loading) {
-    return <Loader />;
-  }
+  // FIXED: vehicle status badge uses VehicleStatus enum
+  const getVehicleStatusBadge = (status: string) => {
+    const s = status?.toUpperCase();
+    const map: Record<string, { color: string; text: string }> = {
+      AVAILABLE:   { color: 'bg-green-100 text-green-800',  text: 'Disponible' },
+      RENTED:      { color: 'bg-blue-100 text-blue-800',    text: 'Loué' },
+      MAINTENANCE: { color: 'bg-orange-100 text-orange-800',text: 'Maintenance' },
+      UNAVAILABLE: { color: 'bg-red-100 text-red-800',      text: 'Indisponible' },
+    };
+    const badge = map[s] || map.UNAVAILABLE;
+    return (
+      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${badge.color}`}>
+        {badge.text}
+      </span>
+    );
+  };
+
+  if (loading) return <Loader />;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4">
-        {/* Header Section */}
+
+        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-primary-dark">Dashboard Admin</h1>
-          <p className="text-gray-600 mt-2">Vue d'ensemble de l'activité</p>
+          <h1 className="text-3xl font-bold text-primary-dark">{t('admin.title')}</h1>
+          <p className="text-gray-500 mt-1">Vue d'ensemble de l'activité</p>
         </div>
 
-        {/* Statistics Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Fleet Statistics */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+        {/* Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Total Véhicules</p>
+                <p className="text-gray-500 text-sm mb-1">{t('admin.stats.fleet')}</p>
                 <p className="text-3xl font-bold text-primary-dark">{stats?.totalVehicles || 0}</p>
-                <p className="text-sm text-green-600 mt-1">
-                  {stats?.availableVehicles || 0} disponibles
-                </p>
+                <p className="text-sm text-green-600 mt-1">{stats?.availableVehicles || 0} disponibles</p>
               </div>
-              <FaCar className="text-5xl text-primary-light" />
+              <FaCar className="text-5xl text-primary-light opacity-70" />
             </div>
           </div>
-
-          {/* Booking Volume */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Total Réservations</p>
+                <p className="text-gray-500 text-sm mb-1">{t('admin.stats.total')}</p>
                 <p className="text-3xl font-bold text-primary-dark">{stats?.totalBookings || 0}</p>
               </div>
-              <FaCalendar className="text-5xl text-blue-500" />
+              <FaCalendar className="text-5xl text-blue-400 opacity-70" />
             </div>
           </div>
-
-          {/* Critical Actions Tracking */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">En attente</p>
+                <p className="text-gray-500 text-sm mb-1">{t('admin.stats.pending')}</p>
                 <p className="text-3xl font-bold text-yellow-600">{stats?.pendingBookings || 0}</p>
               </div>
-              <FaClock className="text-5xl text-yellow-500" />
+              <FaClock className="text-5xl text-yellow-400 opacity-70" />
             </div>
           </div>
-
-          {/* Financial Overview */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Revenus Total</p>
+                <p className="text-gray-500 text-sm mb-1">{t('admin.stats.revenue')}</p>
                 <p className="text-2xl font-bold text-green-600">
                   {Number(stats?.totalRevenue || 0).toLocaleString()} FCFA
                 </p>
               </div>
-              <FaMoneyBill className="text-5xl text-green-500" />
+              <FaMoneyBill className="text-5xl text-green-400 opacity-70" />
             </div>
           </div>
         </div>
 
-        {/* Tab-based Content Navigation */}
-        <div className="bg-white rounded-lg shadow-md mb-8">
-          <div className="border-b">
-            <div className="flex">
+        {/* Tabs */}
+        <div className="bg-white rounded-xl shadow-sm">
+          <div className="border-b flex">
+            {(['bookings', 'vehicles'] as const).map((tab) => (
               <button
-                onClick={() => setActiveTab('bookings')}
-                className={`px-6 py-4 font-medium ${
-                  activeTab === 'bookings'
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-4 font-medium transition ${
+                  activeTab === tab
                     ? 'text-primary-dark border-b-2 border-primary-light'
-                    : 'text-gray-600 hover:text-primary-dark'
+                    : 'text-gray-500 hover:text-primary-dark'
                 }`}
               >
-                Réservations ({bookings.length})
+                {tab === 'bookings'
+                  ? `${t('admin.bookings')} (${bookings.length})`
+                  : `${t('admin.vehicles')} (${vehicles.length})`}
               </button>
-              <button
-                onClick={() => setActiveTab('vehicles')}
-                className={`px-6 py-4 font-medium ${
-                  activeTab === 'vehicles'
-                    ? 'text-primary-dark border-b-2 border-primary-light'
-                    : 'text-gray-600 hover:text-primary-dark'
-                }`}
-              >
-                Véhicules ({vehicles.length})
-              </button>
-            </div>
+            ))}
           </div>
 
-          {/* Bookings Management Table */}
+          {/* Bookings tab */}
           {activeTab === 'bookings' && (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Véhicule</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dates</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    {['Client', 'Véhicule', 'Dates', 'Prix', 'Statut', 'Actions'].map(h => (
+                      <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100">
                   {bookings.map((booking) => (
                     <tr key={booking.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {booking.user?.firstName} {booking.user?.lastName}
-                        </div>
-                        <div className="text-sm text-gray-500">{booking.user?.email}</div>
+                        <p className="font-medium text-sm">{booking.user?.firstName} {booking.user?.lastName}</p>
+                        <p className="text-xs text-gray-400">{booking.user?.email}</p>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {booking.vehicle?.brand} {booking.vehicle?.model}
-                        </div>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {booking.vehicle?.brand} {booking.vehicle?.model}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {new Date(booking.startDate).toLocaleDateString('fr-FR')}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          au {new Date(booking.endDate).toLocaleDateString('fr-FR')}
-                        </div>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        <p>{new Date(booking.startDate).toLocaleDateString('fr-FR')}</p>
+                        <p className="text-xs text-gray-400">→ {new Date(booking.endDate).toLocaleDateString('fr-FR')}</p>
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-primary-dark">
                         {Number(booking.totalPrice).toLocaleString()} FCFA
                       </td>
                       <td className="px-6 py-4">{getStatusBadge(booking.status)}</td>
                       <td className="px-6 py-4">
+                        {/* FIXED: option values are UPPERCASE */}
                         <select
                           value={booking.status}
                           onChange={(e) => handleUpdateBookingStatus(booking.id, e.target.value)}
-                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-primary-light"
+                          className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-primary-light"
                         >
-                          <option value="pending">En attente</option>
-                          <option value="confirmed">Confirmer</option>
-                          <option value="cancelled">Annuler</option>
-                          <option value="completed">Terminer</option>
+                          <option value="PENDING">{t('booking.status.PENDING')}</option>
+                          <option value="CONFIRMED">{t('booking.status.CONFIRMED')}</option>
+                          <option value="CANCELLED">{t('booking.status.CANCELLED')}</option>
+                          <option value="COMPLETED">{t('booking.status.COMPLETED')}</option>
                         </select>
                       </td>
                     </tr>
@@ -253,49 +223,36 @@ export const AdminDashboard = () => {
             </div>
           )}
 
-          {/* Fleet Management Table */}
+          {/* Vehicles tab */}
           {activeTab === 'vehicles' && (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Véhicule</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix/Jour</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    {['Véhicule', 'Catégorie', 'Prix/Jour', 'Statut', 'Actions'].map(h => (
+                      <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100">
                   {vehicles.map((vehicle) => (
                     <tr key={vehicle.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {vehicle.brand} {vehicle.model}
-                        </div>
-                        <div className="text-sm text-gray-500">{vehicle.year}</div>
+                        <p className="font-medium text-sm">{vehicle.brand} {vehicle.model}</p>
+                        <p className="text-xs text-gray-400">{vehicle.year}</p>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{vehicle.category}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{vehicle.category}</td>
                       <td className="px-6 py-4 text-sm font-bold text-primary-dark">
-                        {vehicle.pricePerDay.toLocaleString()} FCFA
+                        {Number(vehicle.pricePerDay).toLocaleString()} FCFA
                       </td>
+                      {/* FIXED: use vehicle.status (UPPERCASE enum) not isAvailable boolean */}
+                      <td className="px-6 py-4">{getVehicleStatusBadge(vehicle.status)}</td>
                       <td className="px-6 py-4">
-                        <span
-                          className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                            vehicle.isAvailable
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {vehicle.isAvailable ? 'Disponible' : 'Indisponible'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm">
                         <button
                           onClick={() => handleDeleteVehicle(vehicle.id)}
-                          className="text-red-600 hover:text-red-900 font-medium"
+                          className="text-red-600 hover:text-red-800 font-medium text-sm hover:underline"
                         >
-                          Supprimer
+                          {t('common.delete')}
                         </button>
                       </td>
                     </tr>

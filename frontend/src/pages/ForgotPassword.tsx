@@ -2,65 +2,57 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaEnvelope, FaArrowLeft } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import axios from 'axios';
+import { authAPI } from '../services/api';
+import { useTranslation } from '../i18n';
+import { logger } from '../utils/logger';
 
-/**
- * Environment-based API endpoint configuration
- */
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const CTX = 'ForgotPassword';
 
-/**
- * ForgotPassword Component
- * Manages the password recovery flow by allowing users to request
- * a reset link via their registered email address.
- */
 export const ForgotPassword = () => {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { t, lang } = useTranslation();
+  const [email,     setEmail]     = useState('');
+  const [loading,   setLoading]   = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
-  /**
-   * Handles the password reset request submission
-   * @param e Form event
-   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
+    logger.info(CTX, 'Password reset requested', { email });
     try {
-      // Trigger the backend password reset workflow
-      await axios.post(`${API_URL}/auth/forgot-password`, { email });
+      await authAPI.forgotPassword(email);
       setEmailSent(true);
-      toast.success('Email de réinitialisation envoyé !');
+      toast.success(lang === 'fr' ? 'Email de réinitialisation envoyé !' : 'Reset email sent!');
+      logger.info(CTX, 'Reset email sent');
     } catch (error: any) {
-      // Display specific server error message or a generic fallback
-      toast.error(error.response?.data?.message || 'Erreur lors de l\'envoi');
+      const msg = error.response?.data?.message
+        || (lang === 'fr' ? 'Erreur lors de l\'envoi' : 'Error sending email');
+      toast.error(msg);
+      logger.error(CTX, 'Reset email failed');
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Success View: Rendered once the server confirms the reset email has been dispatched
-   */
+  // Vue succès
   if (emailSent) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
         <div className="max-w-md w-full">
-          <div className="bg-white rounded-lg shadow-xl p-8 text-center">
-            <div className="text-6xl text-green-500 mb-4">✓</div>
-            <h2 className="text-2xl font-bold text-primary-dark mb-4">
-              Email envoyé !
+          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-3xl">✓</span>
+            </div>
+            <h2 className="text-2xl font-bold text-primary-dark mb-3">
+              {lang === 'fr' ? 'Email envoyé !' : 'Email sent!'}
             </h2>
-            <p className="text-gray-600 mb-6">
-              Nous avons envoyé un lien de réinitialisation à <strong>{email}</strong>.
-              Vérifiez votre boîte de réception.
+            <p className="text-gray-500 mb-6 text-sm leading-relaxed">
+              {lang === 'fr'
+                ? <>Nous avons envoyé un lien de réinitialisation à <strong>{email}</strong>. Vérifiez votre boîte de réception et vos spams.</>
+                : <>We sent a reset link to <strong>{email}</strong>. Check your inbox and spam folder.</>}
             </p>
-            <Link
-              to="/login"
-              className="inline-block bg-primary-dark text-white px-6 py-3 rounded-lg font-bold hover:bg-primary-light transition"
-            >
-              Retour à la connexion
+            <Link to="/login"
+              className="inline-block bg-primary-dark text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-light transition">
+              {t('auth.forgot.back')}
             </Link>
           </div>
         </div>
@@ -68,56 +60,49 @@ export const ForgotPassword = () => {
     );
   }
 
-  /**
-   * Primary View: Password reset request form
-   */
+  // Formulaire principal
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-lg shadow-xl p-8">
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-primary-dark">Mot de passe oublié ?</h2>
-            <p className="text-gray-600 mt-2">
-              Entrez votre email pour recevoir un lien de réinitialisation
-            </p>
+            <div className="w-14 h-14 bg-primary-light/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FaEnvelope className="text-2xl text-primary-light" />
+            </div>
+            <h2 className="text-3xl font-bold text-primary-dark">{t('auth.forgot.title')}</h2>
+            <p className="text-gray-500 mt-2 text-sm">{t('auth.forgot.subtitle')}</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                {t('auth.forgot.email')}
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FaEnvelope className="text-gray-400" />
-                </div>
+                <FaEnvelope className="absolute left-3 top-3 text-gray-400" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-light focus:border-transparent"
+                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-light focus:border-transparent transition"
                   placeholder="votre@email.com"
                   required
                 />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary-dark text-white py-3 rounded-lg font-bold hover:bg-primary-light transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Envoi en cours...' : 'Envoyer le lien'}
+            <button type="submit" disabled={loading}
+              className="w-full bg-primary-dark text-white py-3 rounded-lg font-bold hover:bg-primary-light transition disabled:opacity-50 disabled:cursor-not-allowed">
+              {loading ? t('auth.forgot.loading') : t('auth.forgot.submit')}
             </button>
           </form>
 
           <div className="mt-6 text-center">
-            <Link
-              to="/login"
-              className="inline-flex items-center space-x-2 text-primary-light hover:underline"
-            >
+            <Link to="/login"
+              className="inline-flex items-center gap-2 text-primary-light hover:underline text-sm font-medium">
               <FaArrowLeft />
-              <span>Retour à la connexion</span>
+              {t('auth.forgot.back')}
             </Link>
           </div>
         </div>

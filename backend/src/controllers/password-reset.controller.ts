@@ -1,136 +1,126 @@
+/**
+ * @file  password-reset.controller.ts
+ * @desc  Password recovery flow — forgot password + reset with token.
+ *
+ * Corrections vs original:
+ *   - Uses sendPasswordResetEmail() from email.service (dedicated template)
+ *   - password field: column name is `password` in DB (stores bcrypt hash)
+ *   - Anti-enumeration: same HTTP 200 response whether email exists or not
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { asyncHandler, AppError } from '../middleware/error.middleware';
-import { sendEmail } from '../services/email.service';
+import { sendPasswordResetEmail } from '../services/email.service';
 import prisma from '../utils/prisma.util';
+import { logger } from '../utils/logger.util';
 
-/**
- * PASSWORD RECOVERY SCHEMAS
- * Enforcing strict validation for sensitive security operations.
- */
+const CTX = 'PasswordResetController';
+
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
 const forgotPasswordSchema = z.object({
-  email: z.string().email('Invalid email format')
+  email: z.string().email('Invalid email format'),
 });
 
 const resetPasswordSchema = z.object({
-  token: z.string(),
-  newPassword: z.string().min(8, 'Password must be at least 8 characters long')
+  token:       z.string().min(1, 'Token is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
+// ─── forgotPassword ───────────────────────────────────────────────────────────
+
 /**
- * @desc    Initiate password recovery process
  * @route   POST /api/auth/forgot-password
  * @access  Public
+ *
+ * Always returns HTTP 200 — prevents attackers from discovering registered emails.
  */
 export const forgotPassword = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    // 1. Validate payload
     const { email } = forgotPasswordSchema.parse(req.body);
+    logger.info(CTX, 'Password reset requested', { email });
 
-    // 2. Lookup user
     const user = await prisma.user.findUnique({ where: { email } });
-    
-    /**
-     * SECURITY BEST PRACTICE: Anti-Enumeration
-     * We return a success message even if the user doesn't exist to prevent 
-     * malicious actors from discovering registered emails.
-     */
+
     if (!user) {
+      // Anti-enumeration: silently ignore unknown emails
+      logger.debug(CTX, 'Reset ignored — unknown email', { email });
       return res.status(200).json({
         success: true,
-        message: 'If an account exists with this email, a reset link will be sent.'
+        message: 'If an account exists with this email, a reset link will be sent.',
       });
     }
 
-    // 3. Token Generation (Using Node's crypto for secure randomness)
+    // 256-bit cryptographically secure token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // Token valid for 1 hour
+    const expiresAt  = new Date(Date.now() + 3_600_000); // 1 hour TTL
 
-    // 4. Persistence: Store hashed version or raw token with expiration
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        reset_password_token: resetToken,
-        reset_password_expiry: resetTokenExpiry
-      }
+        reset_password_token:  resetToken,
+        reset_password_expiry: expiresAt,
+      },
     });
 
-    // 5. Email Dispatch
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    
-    // Using a professional HTML template for better UX
-    await sendEmail({
-      to: email,
-      subject: 'Password Reset Request - GIA Vehicle Booking',
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            .button { background: #00B4D8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; }
-          </style>
-        </head>
-        <body>
-          <h2>Password Reset Request</h2>
-          <p>Hello ${user.first_name},</p>
-          <p>You requested a password reset for your GIA Group account.</p>
-          <p>Click the button below to proceed (link valid for 60 minutes):</p>
-          <a href="${resetUrl}" class="button">Reset My Password</a>
-          <p>If you did not request this, please ignore this email or contact support if you have concerns.</p>
-          <hr/>
-          <p><small>GIA Vehicle Booking Team</small></p>
-        </body>
-        </html>
-      `
-    });
+    // Use the dedicated email template
+    await sendPasswordResetEmail(user.email, resetToken, user.first_name);
+
+    logger.info(CTX, 'Reset email dispatched', { userId: user.id, expiresAt });
 
     res.status(200).json({
       success: true,
-      message: 'Reset link dispatched to your inbox.'
+      message: 'If an account exists with this email, a reset link will be sent.',
     });
   }
 );
 
+// ─── resetPassword ────────────────────────────────────────────────────────────
+
 /**
- * @desc    Reset password using valid token
  * @route   POST /api/auth/reset-password
  * @access  Public
+ *
+ * Validates token existence AND expiry in one DB query.
+ * Atomically sets new password and clears both reset fields.
  */
 export const resetPassword = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    // 1. Data validation
     const { token, newPassword } = resetPasswordSchema.parse(req.body);
+    logger.info(CTX, 'Reset password attempt');
 
-    // 2. Identify user by token and ensure it hasn't expired (gte: now)
     const user = await prisma.user.findFirst({
       where: {
-        reset_password_token: token,
-        reset_password_expiry: { gte: new Date() }
-      }
+        reset_password_token:  token,
+        reset_password_expiry: { gte: new Date() },
+      },
     });
 
     if (!user) {
+      logger.warn(CTX, 'Invalid or expired reset token');
       return next(new AppError('The reset token is invalid or has expired.', 400));
     }
 
-    // 3. Security: Hash the new credentials
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-    // 4. Atomic Update: Set new password and clear recovery fields
+    // Atomic: update password + clear token fields in one operation
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        password_hash: hashedPassword,
-        reset_password_token: null,
-        reset_password_expiry: null
-      }
+        password:              hashedPassword,  // bcrypt hash stored in `password` column
+        reset_password_token:  null,
+        reset_password_expiry: null,
+      },
     });
+
+    logger.info(CTX, 'Password reset successful', { userId: user.id });
 
     res.status(200).json({
       success: true,
-      message: 'Password successfully updated. You can now log in.'
+      message: 'Password updated successfully. You can now log in.',
     });
   }
 );

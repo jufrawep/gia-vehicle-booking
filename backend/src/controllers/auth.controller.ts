@@ -1,3 +1,14 @@
+/**
+ * @file  auth.controller.ts
+ * @desc  Authentication controller — register, login, getMe.
+ *
+ * Corrections vs original:
+ *   - password_hash → password  (field name aligned with Prisma schema @map)
+ *   - login now checks user.status === 'BLOCKED' before verifying password
+ *   - role stored and returned UPPERCASE ('USER' | 'ADMIN')
+ *   - all DB field names aligned with snake_case schema
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -5,201 +16,169 @@ import prisma from '../utils/prisma.util';
 import { generateToken } from '../utils/jwt.util';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { sendWelcomeEmail } from '../services/email.service';
+import { logger } from '../utils/logger.util';
 
-/**
- * AUTHENTICATION SCHEMAS
- * Using Zod for strict request body validation to ensure type safety.
- */
+const CTX = 'AuthController';
+
+// ─── Validation schemas ───────────────────────────────────────────────────────
+
 const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email:     z.string().email('Invalid email address'),
+  password:  z.string().min(6, 'Password must be at least 6 characters'),
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-  phone: z.string().optional()
+  lastName:  z.string().min(2, 'Last name must be at least 2 characters'),
+  phone:     z.string().optional(),
 });
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required')
+  email:    z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
 });
 
+// ─── Helper: format user for API response ────────────────────────────────────
+
+function formatUser(user: any) {
+  return {
+    id:            user.id,
+    email:         user.email,
+    firstName:     user.first_name,
+    lastName:      user.last_name,
+    phone:         user.phone         ?? undefined,
+    role:          user.role,            // UPPERCASE: 'USER' | 'ADMIN'
+    status:        user.status,          // UPPERCASE: 'ACTIVE' | 'BLOCKED'
+    permissions:   user.permissions   ?? [],
+    isActive:      user.is_active,
+    emailVerified: user.email_verified,
+    createdAt:     user.created_at,
+    updatedAt:     user.updated_at,
+  };
+}
+
+// ─── register ────────────────────────────────────────────────────────────────
+
 /**
- * @desc    Register a new user
  * @route   POST /api/auth/register
  * @access  Public
  */
 export const register = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    // 1. Data validation via Zod
-    const validatedData = registerSchema.parse(req.body);
+    const validated = registerSchema.parse(req.body);
+    logger.info(CTX, 'Registration attempt', { email: validated.email });
 
-    // 2. Conflict Check: Ensure user doesn't already exist
-    const existingUser = await prisma.user.findUnique({
-      where: { email: validatedData.email }
-    });
-
-    if (existingUser) {
+    // Conflict check
+    const existing = await prisma.user.findUnique({ where: { email: validated.email } });
+    if (existing) {
+      logger.warn(CTX, 'Email already registered', { email: validated.email });
       return next(new AppError('A user with this email already exists', 400));
     }
 
-    // 3. Security: Hash password before database persistence (Cost factor: 12)
-    const hashedPassword = await bcrypt.hash(validatedData.password, 12);
+    // Hash password (cost factor 12)
+    const hashedPassword = await bcrypt.hash(validated.password, 12);
 
-    // 4. Persistence: Create record with explicit mapping from camelCase (JS) to snake_case (DB)
     const user = await prisma.user.create({
       data: {
-        email: validatedData.email,
-        password_hash: hashedPassword,
-        first_name: validatedData.firstName,
-        last_name: validatedData.lastName,
-        phone: validatedData.phone || null,
-        role: 'user'
+        email:      validated.email,
+        password:   hashedPassword,   // maps to password_hash column
+        first_name: validated.firstName,
+        last_name:  validated.lastName,
+        phone:      validated.phone || null,
+        role:       'USER',           // UPPERCASE enum
+        status:     'ACTIVE',         // UPPERCASE enum
       },
-      select: {
-        id: true,
-        email: true,
-        first_name: true,
-        last_name: true,
-        phone: true,
-        role: true,
-        created_at: true
-      }
     });
 
-    // 5. JWT Generation: Include core identity in payload
     const token = generateToken({
-      id: user.id,
-      email: user.email,
-      role: user.role
+      id:          user.id,
+      email:       user.email,
+      role:        user.role,
+      permissions: user.permissions as string[],
     });
 
-    // 6. Async Background Tasks: Send welcome email without blocking the response
+    logger.info(CTX, 'User registered', { userId: user.id, email: user.email });
+
+    // Fire-and-forget — email failure must not block the response
     sendWelcomeEmail(user.email, user.first_name).catch(err =>
-      console.error('Email Service Failure:', err)
+      logger.error(CTX, 'Welcome email failed', { userId: user.id, error: err.message })
     );
 
-    // 7. Response: Explicitly format response to maintain frontend-friendly camelCase
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          phone: user.phone,
-          role: user.role,
-          createdAt: user.created_at
-        },
-        token
-      }
+      data:    { user: formatUser(user), token },
     });
   }
 );
 
+// ─── login ────────────────────────────────────────────────────────────────────
+
 /**
- * @desc    Authenticate user & get token
  * @route   POST /api/auth/login
  * @access  Public
+ *
+ * Security: generic error message prevents email enumeration.
+ * BLOCKED check returns 403 (suspended) not 401 (unauthorized).
  */
 export const login = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const validatedData = loginSchema.parse(req.body);
+    const validated = loginSchema.parse(req.body);
+    logger.info(CTX, 'Login attempt', { email: validated.email });
 
-    // 1. Lookup user by unique identifier (email)
-    const user = await prisma.user.findUnique({
-      where: { email: validatedData.email }
-    });
+    const user = await prisma.user.findUnique({ where: { email: validated.email } });
 
-    // 2. Generic error message for security (don't leak if email or password is the culprit)
     if (!user) {
+      logger.warn(CTX, 'Login failed — user not found', { email: validated.email });
       return next(new AppError('Invalid email or password', 401));
     }
 
-    // 3. Verify identity via cryptographic comparison
-    const isPasswordValid = await bcrypt.compare(
-      validatedData.password,
-      user.password_hash
-    );
+    // Check suspension BEFORE password comparison
+    if (user.status === 'BLOCKED') {
+      logger.warn(CTX, 'Login denied — account blocked', { userId: user.id });
+      return next(new AppError('Your account has been suspended. Please contact support.', 403));
+    }
 
+    // `user.password` maps to the password_hash column in the DB
+    const isPasswordValid = await bcrypt.compare(validated.password, user.password);
     if (!isPasswordValid) {
+      logger.warn(CTX, 'Login failed — wrong password', { email: validated.email });
       return next(new AppError('Invalid email or password', 401));
     }
 
     const token = generateToken({
-      id: user.id,
-      email: user.email,
-      role: user.role
+      id:          user.id,
+      email:       user.email,
+      role:        user.role,
+      permissions: user.permissions as string[],
     });
 
-    // 4. Safe Response: Strip sensitive data (password_hash) and format fields
+    logger.info(CTX, 'Login successful', { userId: user.id, role: user.role });
+
     res.status(200).json({
       success: true,
       message: 'Login successful',
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role,
-          isActive: user.is_active,
-          emailVerified: user.email_verified,
-          createdAt: user.created_at
-        },
-        token
-      }
+      data:    { user: formatUser(user), token },
     });
   }
 );
 
+// ─── getMe ────────────────────────────────────────────────────────────────────
+
 /**
- * @desc    Get current authenticated user profile
  * @route   GET /api/auth/me
- * @access  Private (Requires Protect Middleware)
+ * @access  Private
  */
 export const getMe = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    // Identity provided by authentication middleware (protect)
     const userId = (req as any).user.id;
+    logger.debug(CTX, 'Profile requested', { userId });
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        first_name: true,
-        last_name: true,
-        phone: true,
-        role: true,
-        is_active: true,
-        email_verified: true,
-        created_at: true,
-        updated_at: true
-      }
-    });
-
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      return next(new AppError('User session not found in database', 404));
+      return next(new AppError('User not found. Please log in again.', 404));
     }
 
     res.status(200).json({
       success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          phone: user.phone || undefined,
-          role: user.role,
-          isActive: user.is_active,
-          emailVerified: user.email_verified,
-          createdAt: user.created_at,
-          updatedAt: user.updated_at
-        }
-      }
+      data:    { user: formatUser(user) },
     });
   }
 );

@@ -1,26 +1,31 @@
+/**
+ * @file  context/AuthContext.tsx
+ * @desc  Authentication context — session management and JWT persistence.
+ *
+ * Corrections:
+ *   - isAdmin: user.role === 'ADMIN' (UPPERCASE) au lieu de 'admin'
+ *   - navigate uses 'ADMIN' UPPERCASE comparison
+ *   - Logs ajoutés sur login/logout/register
+ */
+
 import { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { authAPI } from '../services/api';
 import { User, AuthContextType, RegisterData } from '../types';
+import { logger } from '../utils/logger';
 
-/**
- * Authentication Context to provide security state across the application
- */
+const CTX = 'AuthContext';
+
 export const AuthContext = createContext<AuthContextType | null>(null);
 
-/**
- * Authentication Provider component that manages user sessions and JWT persistence
- */
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser]       = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const navigate              = useNavigate();
 
-  /**
-   * Clears user session, removes local tokens, and redirects to login if necessary
-   */
   const logout = useCallback(() => {
+    logger.info(CTX, 'User logged out');
     setUser(null);
     localStorage.removeItem('token');
     if (window.location.pathname !== '/login') {
@@ -28,82 +33,66 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [navigate]);
 
-  /**
-   * Initialization on mount: Verify existing token validity with the backend
-   */
+  // Verify existing token on mount
   useEffect(() => {
     const initializeAuth = async () => {
       const token = localStorage.getItem('token');
-
       if (!token) {
         setLoading(false);
         return;
       }
-
       try {
         const res = await authAPI.getMe();
-        setUser(res.data.data.user);
-      } catch (error) {
-        // Invalid or expired token -> silent cleanup
-        // Axios interceptor handles redirects elsewhere; here we just clear local state
+        const userData = res.data.data.user;
+        setUser(userData);
+        logger.info(CTX, 'Session restored', { userId: userData.id, role: userData.role });
+      } catch {
+        logger.warn(CTX, 'Session token invalid — clearing');
         localStorage.removeItem('token');
       } finally {
         setLoading(false);
       }
     };
-
     initializeAuth();
-  }, []); // Empty dependency array: runs only once on mount
+  }, []);
 
-  /**
-   * Authenticates user and initializes the session
-   * @param email User credentials
-   * @param password User credentials
-   */
   const login = async (email: string, password: string) => {
+    logger.info(CTX, 'Login attempt', { email });
     const res = await authAPI.login({ email, password });
-    const { user, token } = res.data.data;
+    const { user: userData, token } = res.data.data;
 
-    // 1. Persist the JWT in localStorage
     localStorage.setItem('token', token);
+    setUser(userData);
 
-    // 2. Update global state (triggers ProtectedRoute re-renders)
-    setUser(user);
+    logger.info(CTX, 'Login successful', { userId: userData.id, role: userData.role });
+    toast.success(`Bienvenue, ${userData.firstName} !`);
 
-    // 3. UI Notification
-    toast.success(`Bienvenue, ${user.firstName} !`);
-
-    // 4. Role-based routing logic (supports mixed case roles from backend)
-    navigate(user.role === 'admin' || user.role === 'ADMIN' ? '/admin' : '/dashboard');
+    // UPPERCASE comparison — matches JWT payload
+    navigate(userData.role === 'ADMIN' ? '/admin' : '/dashboard');
   };
 
-  /**
-   * Registers a new user and signs them in immediately
-   * @param data Registration form payload
-   */
   const register = async (data: RegisterData) => {
+    logger.info(CTX, 'Register attempt', { email: data.email });
     const res = await authAPI.register(data);
-    const { user, token } = res.data.data;
+    const { user: userData, token } = res.data.data;
 
     localStorage.setItem('token', token);
-    setUser(user);
+    setUser(userData);
 
-    toast.success(`Bienvenue, ${user.firstName} !`);
+    logger.info(CTX, 'Registration successful', { userId: userData.id });
+    toast.success(`Bienvenue, ${userData.firstName} !`);
     navigate('/dashboard');
   };
 
-  /**
-   * Context value exported to the useAuth hook
-   */
   const value: AuthContextType = {
     user,
-    token: localStorage.getItem('token'),
+    token:           localStorage.getItem('token'),
     login,
     register,
     logout,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin',
-    loading
+    isAdmin:         user?.role === 'ADMIN',  // FIXED: UPPERCASE
+    loading,
   };
 
   return (

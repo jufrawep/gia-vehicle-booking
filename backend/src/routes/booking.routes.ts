@@ -1,3 +1,16 @@
+/**
+ * @file  booking.routes.ts
+ * @desc  Booking routes — authentication required for all.
+ *
+ * IMPORTANT route ordering:
+ *   Specific paths (/my-bookings, /admin-create, /stats/dashboard)
+ *   MUST be declared BEFORE the dynamic /:id pattern.
+ *   Otherwise Express matches /:id first and the specific routes never fire.
+ *
+ * Corrections vs original:
+ *   - restrictTo('ADMIN') — UPPERCASE to match JWT role payload
+ */
+
 import { Router } from 'express';
 import {
   createBooking,
@@ -6,70 +19,28 @@ import {
   getBookingById,
   updateBookingStatus,
   deleteBooking,
-  getBookingStats
+  getBookingStats,
+  adminCreateBooking,
 } from '../controllers/booking.controller';
-import { protect, restrictTo } from '../middleware/auth.middleware';
+import { protect, restrictTo, requirePermission } from '../middleware/auth.middleware';
 
 const router = Router();
 
-/**
- * GLOBAL MIDDLEWARE
- * All routes defined in this router require a valid JWT token.
- */
+// All booking routes require a valid JWT
 router.use(protect);
 
-/* ==========================================================================
-   USER & SHARED ROUTES
-   ========================================================================== */
+// ── Specific named routes (must come before /:id) ────────────────────────────
+router.get('/my-bookings',    getMyBookings);
+router.post('/admin-create',  restrictTo('ADMIN'), requirePermission('CREATE'), adminCreateBooking);
+router.get('/stats/dashboard', restrictTo('ADMIN'), requirePermission('READ'),  getBookingStats);
+router.get('/',               restrictTo('ADMIN'), requirePermission('READ'),   getAllBookings);
 
-/**
- * @route   POST /api/bookings
- * @desc    Create a new vehicle reservation
- */
+// ── User booking actions ──────────────────────────────────────────────────────
 router.post('/', createBooking);
 
-/**
- * @route   GET /api/bookings/my-bookings
- * @desc    Retrieve the booking history for the authenticated user
- */
-router.get('/my-bookings', getMyBookings);
-
-/**
- * @route   GET /api/bookings/:id
- * @desc    Get detailed information for a specific booking
- * @note    Access restricted to the owner of the booking or an admin
- */
-router.get('/:id', getBookingById);
-
-/**
- * @route   PATCH /api/bookings/:id/status
- * @desc    Update a booking status (Cancel for users, Full control for admins)
- */
+// ── Dynamic :id routes (must come last) ──────────────────────────────────────
+router.get('/:id',         getBookingById);
 router.patch('/:id/status', updateBookingStatus);
-
-/* ==========================================================================
-   adminISTRATIVE ROUTES
-   ========================================================================== */
-
-/**
- * @route   GET /api/bookings
- * @desc    Retrieve all bookings across the platform with filtering
- * @access  Private (admin Only)
- */
-router.get('/', restrictTo('admin'), getAllBookings);
-
-/**
- * @route   GET /api/bookings/stats/dashboard
- * @desc    Get analytical data and KPIs for the admin dashboard
- * @access  Private (admin Only)
- */
-router.get('/stats/dashboard', restrictTo('admin'), getBookingStats);
-
-/**
- * @route   DELETE /api/bookings/:id
- * @desc    Permanently remove a booking record
- * @access  Private (admin Only)
- */
-router.delete('/:id', restrictTo('admin'), deleteBooking);
+router.delete('/:id',      restrictTo('ADMIN'), requirePermission('DELETE'), deleteBooking);
 
 export default router;

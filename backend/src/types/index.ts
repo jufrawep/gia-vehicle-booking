@@ -1,114 +1,115 @@
+/**
+ * @file  types/index.ts
+ * @desc  Shared TypeScript types for the GIA Vehicle Booking backend.
+ *
+ * Conventions:
+ *   - All enum string literals are UPPERCASE to match Prisma / PostgreSQL values.
+ *   - DB fields remain snake_case inside Prisma queries; API responses use camelCase.
+ */
+
 import { Request } from 'express';
 
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface JWTPayload {
+  id:          string;
+  email:       string;
+  role:        string;        // 'USER' | 'ADMIN'
+  permissions: string[];      // 'READ' | 'CREATE' | 'DELETE'
+}
+
 /**
- * EXTENDED REQUEST INTERFACE
- * Custom Express Request type that includes the 'user' object populated
- * by the authentication middleware (JWT).
+ * Express Request augmented with the decoded JWT user identity.
+ * Populated by the `protect` middleware.
  */
 export interface AuthRequest extends Request {
   user?: {
-    id: string;
-    email: string;
-    role: string;
+    id:          string;
+    email:       string;
+    role:        string;      // 'USER' | 'ADMIN'
+    permissions: string[];    // 'READ' | 'CREATE' | 'DELETE'
   };
 }
 
-/**
- * AUTHENTICATION & IDENTITY TYPES
- * Defines the core structures for user registration, login, and token management.
- */
-export interface RegisterData {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+export interface User {
+  id:            string;
+  email:         string;
+  firstName:     string;
+  lastName:      string;
+  phone?:        string;
+  role:          'USER' | 'ADMIN';
+  status:        'ACTIVE' | 'BLOCKED';
+  permissions:   ('READ' | 'CREATE' | 'DELETE')[];
+  isActive:      boolean;
+  emailVerified: boolean;
+  createdAt:     string;
+  updatedAt:     string;
 }
 
-export interface LoginData {
-  email: string;
-  password: string;
+// ─── Vehicle ──────────────────────────────────────────────────────────────────
+
+export interface Vehicle {
+  id:              string;
+  brand:           string;
+  model:           string;
+  year:            number;
+  category:        'ECONOMY' | 'COMFORT' | 'LUXURY' | 'SUV' | 'VAN';
+  pricePerDay:     number;
+  seats:           number;
+  transmission:    'MANUAL' | 'AUTOMATIC';
+  fuelType:        'PETROL' | 'DIESEL' | 'ELECTRIC' | 'HYBRID';
+  imageUrl?:       string;
+  features?:       string[];
+  description?:    string;
+  status:          'AVAILABLE' | 'UNAVAILABLE' | 'MAINTENANCE' | 'RENTED';
+  isAvailable:     boolean;
+  licensePlate?:   string;
+  mileage?:        number;
+  location?:       string;
+  locationAddress?: string;
+  isActive:        boolean;
+  createdAt:       string;
+  updatedAt:       string;
 }
 
-/**
- * JWT PAYLOAD
- * Data encoded within the JWT. Keep this minimal to avoid heavy headers.
- */
-export interface JWTPayload {
-  id: string;
-  email: string;
-  role: string;
+// ─── Booking ──────────────────────────────────────────────────────────────────
+
+export interface Booking {
+  id:              string;
+  userId:          string;
+  vehicleId:       string;
+  startDate:       string;
+  endDate:         string;
+  totalDays:       number;
+  totalPrice:      number;
+  status:          'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  paymentStatus:   'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+  notes?:          string;
+  createdAt:       string;
+  updatedAt:       string;
+  vehicle?:        Partial<Vehicle>;
+  user?:           Partial<User>;
 }
 
-/**
- * VEHICLE DOMAIN TYPES
- * Interfaces for managing the fleet, filtering search results, and database persistence.
- */
-export interface VehicleFilter {
-  category?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  transmission?: string;
-  fuelType?: string;
-  seats?: number;
-}
+// ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export interface CreateVehicleData {
-  brand: string;
-  model: string;
-  year: number;
-  category: string;
-  pricePerDay: number;
-  seats: number;
-  transmission: string;
-  fuelType: string;
-  imageUrl?: string;
-  features?: string[];
-  description?: string;
-  licensePlate?: string;
-}
-
-/**
- * BOOKING & RESERVATION TYPES
- * Handling the lifecycle of a vehicle rental.
- */
-export interface CreateBookingData {
-  vehicleId: string;
-  startDate: string | Date;
-  endDate: string | Date;
-  notes?: string;
-}
-
-export interface BookingFilter {
-  status?: string;
-  userId?: string;
-  vehicleId?: string;
-  startDate?: Date;
-  endDate?: Date;
-}
-
-/**
- * GLOBAL API ARCHITECTURE
- * Standardized structure for all server responses to ensure consistency 
- * for the frontend consumer.
- */
-export interface ApiResponse<T = any> {
-  success: boolean;
-  message?: string;
-  data?: T;
-  error?: string;
-}
-
-/**
- * ANALYTICS & DASHBOARD TYPES
- * Aggregated data used for the admin overview panel.
- */
 export interface DashboardStats {
-  totalVehicles: number;
+  totalVehicles:     number;
   availableVehicles: number;
-  totalBookings: number;
-  pendingBookings: number;
+  totalBookings:     number;
+  pendingBookings:   number;
   confirmedBookings: number;
-  totalRevenue: number;
-  recentBookings: any[]; // Consider using a 'Booking' interface here once defined
+  totalRevenue:      number;
+  recentBookings:    Booking[];
+}
+
+// ─── API ──────────────────────────────────────────────────────────────────────
+
+export interface ApiResponse<T = any> {
+  success:  boolean;
+  message?: string;
+  data?:    T;
+  errors?:  { field: string; message: string }[];
 }
