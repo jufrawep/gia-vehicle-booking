@@ -4,207 +4,156 @@ import { Loader } from '../components/Loader';
 import { vehicleAPI } from '../services/api';
 import { Vehicle } from '../types';
 import { toast } from 'react-toastify';
+import { useTranslation } from '../i18n';
 
-/**
- * Page component displaying the vehicle fleet with dynamic filtering.
- * Logic: Syncs local UI state with API Query Parameters.
- */
 export const Vehicles = () => {
-  // --- State Management ---
+  const { t, lang } = useTranslation();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({
-    category: '',
-    transmission: '',
-    fuelType: '',
-    minPrice: '',
-    maxPrice: ''
+  const [loading,  setLoading]  = useState(true);
+  const [filters,  setFilters]  = useState({
+    category: '', transmission: '', fuelType: '', minPrice: '', maxPrice: '',
   });
 
-  // Initial data fetch
-  useEffect(() => {
-    fetchVehicles();
-  }, []);
+  useEffect(() => { fetchVehicles(); }, []);
 
-  /**
-   * Constructs query parameters from state and fetches data.
-   */
-  const fetchVehicles = async (currentFilters = filters) => {
+  const fetchVehicles = async (f = filters) => {
     try {
       setLoading(true);
-      const params: any = {};
-      
-      // Dynamic Parameter Construction
-      if (currentFilters.category) params.category = currentFilters.category;
-      if (currentFilters.transmission) params.transmission = currentFilters.transmission;
-      if (currentFilters.fuelType) params.fuelType = currentFilters.fuelType;
-      if (currentFilters.minPrice) params.minPrice = parseInt(currentFilters.minPrice);
-      if (currentFilters.maxPrice) params.maxPrice = parseInt(currentFilters.maxPrice);
-
-      const res = await vehicleAPI.getAll(params);
-      
-      // Ensure we access the correct data path from your API structure
+      const p: any = {};
+      if (f.category)     p.category     = f.category;
+      if (f.transmission) p.transmission = f.transmission;
+      if (f.fuelType)     p.fuelType     = f.fuelType;
+      if (f.minPrice)     p.minPrice     = parseInt(f.minPrice);
+      if (f.maxPrice)     p.maxPrice     = parseInt(f.maxPrice);
+      const res = await vehicleAPI.getAll(p);
       setVehicles(res.data?.data?.vehicles || []);
-    } catch (error: any) {
-      toast.error('Erreur lors du chargement des véhicules');
-      console.error('Fetch Error:', error);
+    } catch {
+      toast.error(t('toast.error_generic'));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
-    setFilters({
-      ...filters,
-      [e.target.name]: e.target.value
-    });
+  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
+    setFilters({ ...filters, [e.target.name]: e.target.value });
+
+  const handleReset = () => {
+    const empty = { category: '', transmission: '', fuelType: '', minPrice: '', maxPrice: '' };
+    setFilters(empty);
+    fetchVehicles(empty);
   };
 
-  const handleApplyFilters = () => {
-    fetchVehicles();
-  };
-
-  /**
-   * Resets all filters and immediately fetches the full fleet.
-   */
-  const handleResetFilters = () => {
-    const emptyFilters = {
-      category: '',
-      transmission: '',
-      fuelType: '',
-      minPrice: '',
-      maxPrice: ''
-    };
-    setFilters(emptyFilters);
-    fetchVehicles(emptyFilters); // Pass explicit empty state to avoid race conditions
-  };
+  // Nombre de résultats traduit
+  const resultsLabel = lang === 'fr'
+    ? `${vehicles.length} résultat${vehicles.length > 1 ? 's' : ''} trouvé${vehicles.length > 1 ? 's' : ''}`
+    : `${vehicles.length} vehicle${vehicles.length > 1 ? 's' : ''} found`;
 
   if (loading) return <Loader />;
 
+  const sel = 'w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-primary-light';
+  const lbl = 'block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1';
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-5">
       <div className="container mx-auto px-4">
-        <h1 className="text-4xl font-black text-primary-dark mb-8 tracking-tighter uppercase">
-          Notre Flotte
+
+        <h1 className="text-3xl font-black text-primary-dark mb-3 tracking-tighter uppercase">
+          {t('vehicles.title')}
         </h1>
 
-        {/* --- Filter Sidebar/Header --- */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
-          <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Affiner la recherche</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {/* Category */}
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Catégorie</label>
-              <select
-                name="category"
-                value={filters.category}
-                onChange={handleFilterChange}
-                className="w-full bg-gray-50 border-none rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary-light font-semibold text-gray-700"
-              >
-                <option value="">Toutes</option>
-                <option value="economy">Économique</option>
-                <option value="comfort">Confort</option>
-                <option value="luxury">Luxe</option>
-                <option value="suv">SUV</option>
-                <option value="van">Van</option>
+        {/* ── Barre de filtres compacte ── */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2.5 mb-4">
+          <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-2">
+            {lang === 'fr' ? 'Affiner' : 'Filters'}
+          </p>
+
+          {/* Tous sur une ligne — s'emballe en 2 lignes sur petit écran */}
+          <div className="flex flex-wrap items-end gap-2">
+
+            {/* Catégorie */}
+            <div className="w-[118px]">
+              <label className={lbl}>{lang === 'fr' ? 'Catégorie' : 'Category'}</label>
+              <select name="category" value={filters.category} onChange={handleFilterChange} className={sel}>
+                <option value="">{lang === 'fr' ? 'Toutes' : 'All'}</option>
+                <option value="ECONOMY">{lang === 'fr' ? 'Économique' : 'Economy'}</option>
+                <option value="COMFORT">{lang === 'fr' ? 'Confort' : 'Comfort'}</option>
+                <option value="LUXURY">{lang === 'fr' ? 'Luxe' : 'Luxury'}</option>
+                <option value="SUV">SUV</option>
+                <option value="VAN">Van</option>
               </select>
             </div>
 
-            {/* Transmission */}
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Transmission</label>
-              <select
-                name="transmission"
-                value={filters.transmission}
-                onChange={handleFilterChange}
-                className="w-full bg-gray-50 border-none rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary-light font-semibold text-gray-700"
-              >
-                <option value="">Toutes</option>
-                <option value="automatic">Automatique</option>
-                <option value="manual">Manuelle</option>
+            {/* Boîte */}
+            <div className="w-[118px]">
+              <label className={lbl}>{lang === 'fr' ? 'Boîte' : 'Gearbox'}</label>
+              <select name="transmission" value={filters.transmission} onChange={handleFilterChange} className={sel}>
+                <option value="">{lang === 'fr' ? 'Toutes' : 'All'}</option>
+                <option value="AUTOMATIC">{lang === 'fr' ? 'Automatique' : 'Automatic'}</option>
+                <option value="MANUAL">{lang === 'fr' ? 'Manuelle' : 'Manual'}</option>
               </select>
             </div>
 
-            {/* Fuel */}
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Carburant</label>
-              <select
-                name="fuelType"
-                value={filters.fuelType}
-                onChange={handleFilterChange}
-                className="w-full bg-gray-50 border-none rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary-light font-semibold text-gray-700"
-              >
-                <option value="">Tous</option>
-                <option value="petrol">Essence</option>
-                <option value="diesel">Diesel</option>
-                <option value="electric">Électrique</option>
-                <option value="hybrid">Hybride</option>
+            {/* Carburant */}
+            <div className="w-[110px]">
+              <label className={lbl}>{lang === 'fr' ? 'Carburant' : 'Fuel'}</label>
+              <select name="fuelType" value={filters.fuelType} onChange={handleFilterChange} className={sel}>
+                <option value="">{lang === 'fr' ? 'Tous' : 'All'}</option>
+                <option value="PETROL">{lang === 'fr' ? 'Essence' : 'Petrol'}</option>
+                <option value="DIESEL">Diesel</option>
+                <option value="ELECTRIC">{lang === 'fr' ? 'Électrique' : 'Electric'}</option>
+                <option value="HYBRID">{lang === 'fr' ? 'Hybride' : 'Hybrid'}</option>
               </select>
             </div>
 
-            {/* Pricing */}
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Prix Min (FCFA)</label>
-              <input
-                type="number"
-                name="minPrice"
-                value={filters.minPrice}
-                onChange={handleFilterChange}
-                className="w-full bg-gray-50 border-none rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary-light font-semibold text-gray-700"
-                placeholder="Ex: 25000"
-              />
+            {/* Prix min */}
+            <div className="w-[90px]">
+              <label className={lbl}>{lang === 'fr' ? 'Min FCFA' : 'Min Price'}</label>
+              <input type="number" name="minPrice" value={filters.minPrice}
+                onChange={handleFilterChange} placeholder="25000" className={sel} />
             </div>
 
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Prix Max (FCFA)</label>
-              <input
-                type="number"
-                name="maxPrice"
-                value={filters.maxPrice}
-                onChange={handleFilterChange}
-                className="w-full bg-gray-50 border-none rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary-light font-semibold text-gray-700"
-                placeholder="Ex: 100000"
-              />
+            {/* Prix max */}
+            <div className="w-[90px]">
+              <label className={lbl}>{lang === 'fr' ? 'Max FCFA' : 'Max Price'}</label>
+              <input type="number" name="maxPrice" value={filters.maxPrice}
+                onChange={handleFilterChange} placeholder="100000" className={sel} />
             </div>
-          </div>
 
-          <div className="flex space-x-3 mt-6">
-            <button
-              onClick={handleApplyFilters}
-              className="bg-primary-dark text-white px-8 py-3 rounded-xl hover:bg-primary-light transition-all font-black text-xs uppercase tracking-widest shadow-lg shadow-primary-dark/10"
-            >
-              Appliquer
-            </button>
-            <button
-              onClick={handleResetFilters}
-              className="bg-gray-100 text-gray-500 px-8 py-3 rounded-xl hover:bg-gray-200 transition-all font-black text-xs uppercase tracking-widest"
-            >
-              Réinitialiser
-            </button>
+            {/* Boutons */}
+            <div className="flex gap-1.5">
+              <button onClick={() => fetchVehicles()}
+                className="bg-primary-dark text-white px-4 py-1.5 rounded-lg hover:bg-primary-light transition font-black text-[10px] uppercase tracking-wide shadow-sm whitespace-nowrap">
+                {t('vehicles.filter.apply')}
+              </button>
+              <button onClick={handleReset}
+                className="bg-gray-100 text-gray-400 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition font-black text-[10px] uppercase tracking-wide whitespace-nowrap">
+                {t('vehicles.filter.reset')}
+              </button>
+            </div>
+
           </div>
         </div>
 
-        {/* --- Results Section --- */}
+        {/* ── Résultats ── */}
         {vehicles.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-            <p className="text-lg font-bold text-gray-400">Aucun véhicule ne correspond à ces critères.</p>
-            <button onClick={handleResetFilters} className="text-primary-light font-black text-xs uppercase mt-2 hover:underline">
-              Voir tout le catalogue
+          <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-gray-200">
+            <p className="text-lg font-bold text-gray-400">{t('vehicles.no_results')}</p>
+            <button onClick={handleReset}
+              className="text-primary-light font-black text-xs uppercase mt-2 hover:underline">
+              {lang === 'fr' ? 'Voir tout le catalogue' : 'View all vehicles'}
             </button>
           </div>
         ) : (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <p className="text-xs font-black text-gray-400 mb-6 uppercase tracking-widest">
-              {vehicles.length} résultat{vehicles.length > 1 ? 's' : ''} trouvé{vehicles.length > 1 ? 's' : ''}
+          <>
+            <p className="text-[10px] font-black text-gray-400 mb-3 uppercase tracking-widest">
+              {resultsLabel}
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {vehicles.map((vehicle) => (
-                <VehicleCard key={vehicle.id} vehicle={vehicle} />
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {vehicles.map(v => <VehicleCard key={v.id} vehicle={v} />)}
             </div>
-          </div>
+          </>
         )}
+
       </div>
     </div>
   );
