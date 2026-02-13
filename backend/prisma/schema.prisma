@@ -1,7 +1,3 @@
-// -----------------------------------------------------------------------------
-// PRISMA CONFIGURATION
-// -----------------------------------------------------------------------------
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,207 +7,228 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// -----------------------------------------------------------------------------
-// ENUMERATIONS (Domain Logic Constants)
-// -----------------------------------------------------------------------------
+// ─── Enums — SCREAMING_SNAKE_CASE (matches PostgreSQL CREATE TYPE values) ─────
 
 enum Role {
-  user
-  admin
+  USER
+  ADMIN
+}
+
+// READ   → view bookings, vehicles, users
+// CREATE → add vehicles, create bookings on behalf of users
+// DELETE → remove vehicles, bookings, or user accounts
+// Empty permissions array = super-admin (full access)
+enum AdminPermission {
+  READ
+  CREATE
+  DELETE
 }
 
 enum VehicleCategory {
-  economy
-  comfort
-  premium
-  luxury
-  suv
-  van
+  ECONOMY
+  COMFORT
+  LUXURY
+  SUV
+  VAN
 }
 
 enum Transmission {
-  manual
-  automatic
+  MANUAL
+  AUTOMATIC
 }
 
 enum FuelType {
-  petrol
-  diesel
-  electric
-  hybrid
+  PETROL
+  DIESEL
+  ELECTRIC
+  HYBRID
 }
 
-enum VehicleStatus {
-  available
-  rented
-  maintenance
-  unavailable
-}
-
+// PENDING   → awaiting admin confirmation
+// CONFIRMED → approved
+// CANCELLED → cancelled by user or admin
+// COMPLETED → rental finished
 enum BookingStatus {
-  pending
-  confirmed
-  cancelled
-  completed
-  in_progress
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
 }
 
+// ACTIVE  → default; can authenticate and book
+// BLOCKED → suspended by admin; login returns HTTP 403
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+// AVAILABLE   → ready for booking
+// UNAVAILABLE → temporarily out of service
+// MAINTENANCE → under repair
+// RENTED      → currently on an active booking
+enum VehicleStatus {
+  AVAILABLE
+  UNAVAILABLE
+  MAINTENANCE
+  RENTED
+}
+
+// PENDING   → payment initiated, not settled
+// COMPLETED → successfully processed
+// FAILED    → transaction declined or errored
+// REFUNDED  → amount returned to customer
 enum PaymentStatus {
-  pending
-  paid
-  refunded
-  failed
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
 }
 
-// -----------------------------------------------------------------------------
-// MODELS
-// -----------------------------------------------------------------------------
+// ─── Models ───────────────────────────────────────────────────────────────────
 
-/// User Entity: Handles authentication and user profile data.
-/// Includes password recovery tokens and relations to core business activities.
 model User {
-  id                    String    @id @default(uuid()) @db.Uuid
-  email                 String    @unique
-  password_hash         String
+  id                    String            @id @default(uuid())
+  email                 String            @unique
+  // Stores bcrypt hash only — NEVER plaintext
+  password              String            
   first_name            String
   last_name             String
   phone                 String?
-  role                  String?   @default("user") // Referenced against Role enum in logic
-  is_active             Boolean?  @default(true)
-  email_verified        Boolean?  @default(false)
-  
-  // Password Reset Management
+  role                  Role              @default(USER)
+  status                UserStatus        @default(ACTIVE)
+  // Empty array = super-admin (all operations allowed)
+  permissions           AdminPermission[]
+  email_verified        Boolean           @default(false)
+  is_active             Boolean           @default(true)
+  // Password recovery — 1-hour TTL token
   reset_password_token  String?
   reset_password_expiry DateTime?
-  
-  // Metadata
-  created_at            DateTime  @default(now())
-  updated_at            DateTime  @updatedAt
+  created_at            DateTime          @default(now())
+  updated_at            DateTime          @updatedAt
 
-  // Relationships
-  bookings              Booking[]
-  reviews               Review[]
-  notifications         Notification[]
+  bookings      Booking[]
+  reviews       Review[]
+  notifications Notification[]
 
-  @@map("users") // Explicit mapping to avoid pluralization issues in PostgreSQL
+  @@map("users")
 }
 
-/// Vehicle Entity: Stores technical specifications and rental rates.
-/// Features are stored as JSON to allow flexibility in car equipment lists.
 model Vehicle {
-  id                  String   @id @default(uuid()) @db.Uuid
-  brand               String
-  model               String
-  year                Int
-  registration_number String   @unique
-  category            String   // Validated against VehicleCategory enum
-  seats               Int
-  transmission        String?
-  fuel_type           String?
-  daily_rate          Decimal  @db.Decimal(10, 2)
-  image_url           String?
-  features            Json?    @default("[]") // Dynamic list of vehicle options
-  status              String?  @default("available")
-  
-  // Geographical Location (Precise coordination for map integration)
-  location_lat        Decimal? @db.Decimal(10, 8)
-  location_lng        Decimal? @db.Decimal(11, 8)
-  location_address    String?
-  
-  mileage             Int?     @default(0)
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
+  id               String          @id @default(uuid())
+  brand            String
+  model            String
+  year             Int
+  license_plate    String?         @unique
+  category         VehicleCategory
+  price_per_day    Decimal         @db.Decimal(10, 2)
+  seats            Int
+  transmission     Transmission
+  fuel_type        FuelType
+  image_url        String?
+  features         Json?
+  description      String?         @db.Text
+  // is_available kept for legacy compatibility
+  is_available     Boolean         @default(true)
+  // status is the authoritative availability flag
+  status           VehicleStatus   @default(AVAILABLE)
+  mileage          Int?            @default(0)
+  location         String?
+  location_address String?
+  location_lat     Decimal?        @db.Decimal(10, 8)
+  location_lng     Decimal?        @db.Decimal(11, 8)
+  is_active        Boolean         @default(true)
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
 
-  // Relationships
   bookings Booking[]
   reviews  Review[]
 
   @@map("vehicles")
 }
 
-/// Booking Entity: The core transaction model.
-/// Handles the rental lifecycle from pending to completion.
 model Booking {
-  id                String    @id @default(uuid()) @db.Uuid
-  user_id           String    @db.Uuid
-  vehicle_id        String    @db.Uuid
-  start_date        DateTime
-  end_date          DateTime
-  pickup_location   String?
-  dropoff_location  String?
-  total_days        Int
-  total_amount      Decimal   @db.Decimal(10, 2)
-  status            String?   @default("pending")
-  payment_status    String?   @default("pending")
-  payment_method    String?
-  notes             String?
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+  id               String        @id @default(uuid())
+  user_id          String
+  vehicle_id       String
+  start_date       DateTime
+  end_date         DateTime
+  pickup_location  String?
+  dropoff_location String?
+  // Denormalized for fast reporting
+  total_days       Int
+  // Locked at creation — immune to retroactive rate changes
+  total_price      Decimal       @db.Decimal(10, 2)
+  status           BookingStatus @default(PENDING)
+  payment_status   PaymentStatus @default(PENDING)
+  notes            String?       @db.Text
+  is_active        Boolean       @default(true)
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
 
-  // Relations & Constraints
-  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  vehicle   Vehicle  @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
-  payment   Payment? // One-to-one link to payment records
-  review    Review?  // One-to-one link for post-rental feedback
+  user    User    @relation(fields: [user_id],    references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  payment Payment?
+  review  Review?
 
-  @@map("bookings")
-  
-  // Indexes for query performance optimization
   @@index([user_id])
   @@index([vehicle_id])
-  @@index([start_date, end_date]) // Composite index for availability checks
-  @@index([status])
+  @@index([start_date, end_date])
+  @@map("bookings")
 }
 
-/// Payment Entity: Tracks financial transactions related to bookings.
 model Payment {
-  id                String   @id @default(uuid()) @db.Uuid
-  booking_id        String   @unique @db.Uuid // Ensuring strict 1:1 ratio with bookings
-  amount            Decimal  @db.Decimal(10, 2)
-  payment_method    String
-  payment_provider  String?  // e.g., Stripe, PayPal, Local Provider
-  transaction_id    String?  @unique
-  status            String?  @default("pending")
-  metadata          Json?    @default("{}") // External provider response data
-  created_at        DateTime @default(now())
+  id               String        @id @default(uuid())
+  booking_id       String        @unique
+  amount           Decimal       @db.Decimal(10, 2)
+  payment_method   String
+  payment_provider String?
+  // External provider reference (e.g. MTN MoMo, Orange Money)
+  transaction_id   String?       @unique
+  status           PaymentStatus @default(PENDING)
+  metadata         Json?         @default("{}")
+  is_active        Boolean       @default(true)
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
 
   booking Booking @relation(fields: [booking_id], references: [id], onDelete: Cascade)
 
   @@map("payments")
-  @@index([booking_id])
 }
 
-/// Review Entity: Post-rental feedback for quality assurance.
 model Review {
-  id         String   @id @default(uuid()) @db.Uuid
-  booking_id String   @unique @db.Uuid // One review per rental
-  user_id    String   @db.Uuid
-  vehicle_id String   @db.Uuid
-  rating     Int      // Scale validation (e.g., 1-5) handled in API logic
-  comment    String?
+  id         String   @id @default(uuid())
+  booking_id String   @unique
+  user_id    String
+  vehicle_id String
+  // Constrained to 1-5 at application layer
+  rating     Int
+  comment    String?  @db.Text
+  is_active  Boolean  @default(true)
   created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  booking  Booking @relation(fields: [booking_id], references: [id], onDelete: Cascade)
-  user     User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  vehicle  Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [user_id],    references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
 
   @@map("reviews")
-  @@index([vehicle_id]) // Index to quickly fetch vehicle average ratings
 }
 
-/// Notification Entity: User engagement and system alerts.
 model Notification {
-  id         String   @id @default(uuid()) @db.Uuid
-  user_id    String   @db.Uuid
-  type       String   // e.g., 'BOOKING_confirmed', 'PAYMENT_REMINDER'
+  id         String   @id @default(uuid())
+  user_id    String
+  type       String
   title      String
   message    String   @db.Text
-  is_read    Boolean? @default(false)
-  metadata   Json?    @default("{}") // Relevant links or IDs
+  is_read    Boolean  @default(false)
+  // Arbitrary context for deep-linking e.g. { bookingId: "..." }
+  metadata   Json?    @default("{}")
+  is_active  Boolean  @default(true)
   created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@map("notifications")
   @@index([user_id])
+  @@map("notifications")
 }
