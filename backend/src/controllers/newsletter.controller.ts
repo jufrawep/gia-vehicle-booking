@@ -1,34 +1,26 @@
+/**
+ * @file  newsletter.controller.ts
+ * @desc  Newsletter subscription — sends confirmation email.
+ * No changes required vs original except adding log on success.
+ */
+
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../middleware/error.middleware';
 import { sendEmail } from '../services/email.service';
+import { logger } from '../utils/logger.util';
 
-/**
- * VALIDATION SCHEMA
- * Ensures the input is strictly a valid email format before processing.
- */
+const CTX = 'NewsletterController';
+
+
 const newsletterSchema = z.object({
   email: z.string().email('Invalid email address')
 });
 
-/**
- * SUBSCRIBE NEWSLETTER
- * Handles the opt-in process for marketing communications.
- * * Current Logic:
- * 1. Validates email syntax.
- * 2. Sends an immediate confirmation email via Nodemailer.
- * * @todo Implement database persistence (e.g., 'Subscriber' table) to manage opt-outs and duplicate checks.
- */
 export const subscribeNewsletter = asyncHandler(
   async (req: Request, res: Response) => {
-    // Input Validation
     const { email } = newsletterSchema.parse(req.body);
-
-    // TODO: DB Check
-    // Future implementation: Check if email exists in 'Newsletter' or 'User' table.
-    // if (exists) return res.status(409).json({ message: 'Already subscribed' });
-
-    // Send Confirmation Email (Transactional)
+    logger.info(CTX, 'Newsletter subscription', { email });
     await sendEmail({
       to: email,
       subject: 'Bienvenue à notre Newsletter - GIA Vehicle Booking',
@@ -66,9 +58,13 @@ export const subscribeNewsletter = asyncHandler(
       `
     });
 
+    logger.info(CTX, 'Subscription confirmed', { email });
+
     res.status(200).json({
       success: true,
-      message: 'Subscription successful. Confirmation email sent.'
+      message: 'Subscription successful. Confirmation email sent.',
     });
+
+
   }
 );
