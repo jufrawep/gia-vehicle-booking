@@ -55,19 +55,23 @@ export const forgotPassword = asyncHandler(
     }
 
     // 256-bit cryptographically secure token
-    const resetToken = crypto.randomBytes(32).toString('hex');
+    // NOTE: base64url (no '+', '/', '=', '\x00') — PostgreSQL UTF-8 safe
+    const resetToken = crypto.randomBytes(32).toString('base64url');
     const expiresAt  = new Date(Date.now() + 3_600_000); // 1 hour TTL
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        reset_password_token:  resetToken,
-        reset_password_expiry: expiresAt,
-      },
-    });
+    // $executeRaw avec paramètres préparés : contourne le bug de sérialisation
+    // de prisma.user.update() sur AdminPermission[] (tableau d'enum PostgreSQL)
+    // qui injecte des bytes nuls (\x00) dans le UPDATE complet généré par Prisma.
+    await prisma.$executeRaw`
+      UPDATE users
+      SET
+        reset_password_token  = ${resetToken}::text,
+        reset_password_expiry = ${expiresAt}::timestamptz
+      WHERE id    = ${user.id}::uuid
+    `;
 
     // Use the dedicated email template
-    await sendPasswordResetEmail(user.email, resetToken, user.first_name);
+    await sendPasswordResetEmail(user.email, resetToken, user.first_name, user.id);
 
     logger.info(CTX, 'Reset email dispatched', { userId: user.id, expiresAt });
 
@@ -107,14 +111,15 @@ export const resetPassword = asyncHandler(
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     // Atomic: update password + clear token fields in one operation
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password:              hashedPassword,  // bcrypt hash stored in `password` column
-        reset_password_token:  null,
-        reset_password_expiry: null,
-      },
-    });
+    // $executeRaw : même raison que forgotPassword — contourne le bug AdminPermission[]
+    await prisma.$executeRaw`
+      UPDATE users
+      SET
+        password              = ${hashedPassword}::text,
+        reset_password_token  = NULL,
+        reset_password_expiry = NULL
+      WHERE id = ${user.id}::uuid
+    `;
 
     logger.info(CTX, 'Password reset successful', { userId: user.id });
 
