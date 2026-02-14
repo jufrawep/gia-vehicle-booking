@@ -1,4 +1,39 @@
 import nodemailer from 'nodemailer';
+import prisma from '../utils/prisma.util';
+import { logger } from '../utils/logger.util';
+
+const SVC = 'EmailService';
+
+// ─── Helper : persiste chaque email envoyé dans la table notifications ────────
+/**
+ * Crée une entrée dans la table `notifications` après l'envoi d'un email.
+ * userId peut être null si l'utilisateur n'est pas encore connu (ex: reset token).
+ * Ne bloque jamais l'exécution — les erreurs sont loguées silencieusement.
+ */
+async function createNotification(params: {
+  userId:   string;
+  type:     string;       // ex: 'BOOKING_CONFIRMATION', 'WELCOME', 'PASSWORD_RESET'
+  title:    string;
+  message:  string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await prisma.notification.create({
+      data: {
+        user_id:  params.userId,
+        type:     params.type,
+        title:    params.title,
+        message:  params.message,
+        metadata: params.metadata ? JSON.stringify(params.metadata) : '{}',
+        is_read:  false,
+      },
+    });
+    logger.debug(SVC, 'Notification created', { userId: params.userId, type: params.type });
+  } catch (err: any) {
+    // Ne jamais bloquer l'envoi d'email à cause d'une erreur de notification
+    logger.warn(SVC, 'Failed to create notification record', { error: err?.message });
+  }
+}
 
 // Configuration du transporteur email pour Gmail
 const transporter = nodemailer.createTransport({
@@ -89,11 +124,12 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
 export const sendBookingConfirmation = async (
   email: string,
   bookingDetails: {
-    bookingId: string;
+    bookingId:   string;
     vehicleName: string;
-    startDate: string;
-    endDate: string;
-    totalPrice: number;
+    startDate:   string;
+    endDate:     string;
+    totalPrice:  number;
+    userId:      string;   // ← ajouté pour la notification
   }
 ): Promise<void> => {
   const html = `
@@ -295,12 +331,27 @@ Email: contact@giagroup.net
     html,
     text
   });
+
+  // ── Persistance en base ──────────────────────────────────────────────────
+  await createNotification({
+    userId:  bookingDetails.userId,
+    type:    'BOOKING_CONFIRMATION',
+    title:   `Réservation confirmée — ${bookingDetails.vehicleName}`,
+    message: `Votre réservation du ${bookingDetails.startDate} au ${bookingDetails.endDate} a été enregistrée. Total : ${bookingDetails.totalPrice.toLocaleString()} FCFA.`,
+    metadata: {
+      bookingId:   bookingDetails.bookingId,
+      vehicleName: bookingDetails.vehicleName,
+      startDate:   bookingDetails.startDate,
+      endDate:     bookingDetails.endDate,
+      totalPrice:  bookingDetails.totalPrice,
+    },
+  });
 };
 
 /**
  * Email de bienvenue pour un nouvel utilisateur
  */
-export const sendWelcomeEmail = async (email: string, name: string): Promise<void> => {
+export const sendWelcomeEmail = async (email: string, name: string, userId: string): Promise<void> => {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -507,12 +558,21 @@ L'équipe GIA Vehicle Booking
     html,
     text
   });
+
+  // ── Persistance en base ──────────────────────────────────────────────────
+  await createNotification({
+    userId:  userId,
+    type:    'WELCOME',
+    title:   'Bienvenue sur GIA Vehicle Booking !',
+    message: `Bonjour ${name}, votre compte a été créé avec succès. Découvrez notre flotte dès maintenant.`,
+    metadata: { email },
+  });
 };
 
 /**
  * Email de réinitialisation de mot de passe
  */
-export const sendPasswordResetEmail = async (email: string, resetToken: string, name: string): Promise<void> => {
+export const sendPasswordResetEmail = async (email: string, resetToken: string, name: string, userId: string): Promise<void> => {
   const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
   
   const html = `
@@ -628,6 +688,15 @@ export const sendPasswordResetEmail = async (email: string, resetToken: string, 
     to: email,
     subject: '🔐 Réinitialisation de votre mot de passe GIA Vehicle Booking',
     html
+  });
+
+  // ── Persistance en base ──────────────────────────────────────────────────
+  await createNotification({
+    userId:  userId,
+    type:    'PASSWORD_RESET',
+    title:   'Réinitialisation de mot de passe',
+    message: `Bonjour ${name}, un lien de réinitialisation de mot de passe a été envoyé à ${email}. Ce lien est valable 1 heure.`,
+    metadata: { email, expiresIn: '1h' },
   });
 };
 
