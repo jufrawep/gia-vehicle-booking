@@ -4,6 +4,7 @@ import {
   FaCar, FaCalendar, FaMoneyBill, FaClock,
   FaUsers, FaEdit, FaTrash, FaPlus, FaTimes, FaEye,
   FaBan, FaCheck, FaUserShield, FaUser,
+  FaCheckCircle, FaTimesCircle, FaHourglass, FaFlag,
 } from 'react-icons/fa';
 import { bookingAPI, vehicleAPI, userAPI } from '../services/api';
 import {
@@ -28,7 +29,7 @@ const EMPTY_VEHICLE: VehicleFormData = {
 
 // ─── Modal Véhicule (Create / Update) ────────────────────────────────────────
 interface VehicleModalProps {
-  vehicle: Vehicle | null;  // null = création
+  vehicle: Vehicle | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -54,10 +55,10 @@ const VehicleModal = ({ vehicle, onClose, onSaved }: VehicleModalProps) => {
       status:       vehicle.status,
       features:     (vehicle.features ?? []).join(', '),
       mileage:      vehicle.mileage ?? 0,
-       location:     typeof vehicle.location === 'object' && vehicle.location !== null
-      ? vehicle.location.address || ''
-      : vehicle.location ?? '',
-  } : EMPTY_VEHICLE
+      location:     typeof vehicle.location === 'object' && vehicle.location !== null
+        ? vehicle.location.address || ''
+        : vehicle.location ?? '',
+    } : EMPTY_VEHICLE
   );
   const [saving, setSaving] = useState(false);
 
@@ -105,8 +106,6 @@ const VehicleModal = ({ vehicle, onClose, onSaved }: VehicleModalProps) => {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b">
           <h2 className="text-lg font-bold text-primary-dark flex items-center gap-2">
             <FaCar className="text-primary-light" />
@@ -114,17 +113,13 @@ const VehicleModal = ({ vehicle, onClose, onSaved }: VehicleModalProps) => {
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><FaTimes /></button>
         </div>
-
-        {/* Body */}
         <div className="overflow-y-auto p-5 space-y-4">
-
           <div className="grid grid-cols-2 gap-3">
             <div><label className={lbl}>{fr ? 'Marque *' : 'Brand *'}</label>
               <input className={inp} value={form.brand} onChange={e => set('brand', e.target.value)} placeholder="Toyota" /></div>
             <div><label className={lbl}>{fr ? 'Modèle *' : 'Model *'}</label>
               <input className={inp} value={form.model} onChange={e => set('model', e.target.value)} placeholder="Corolla" /></div>
           </div>
-
           <div className="grid grid-cols-3 gap-3">
             <div><label className={lbl}>{fr ? 'Année' : 'Year'}</label>
               <input type="number" className={inp} value={form.year} onChange={e => set('year', e.target.value)} min={2000} max={2030} /></div>
@@ -133,7 +128,6 @@ const VehicleModal = ({ vehicle, onClose, onSaved }: VehicleModalProps) => {
             <div><label className={lbl}>{fr ? 'Places' : 'Seats'}</label>
               <input type="number" className={inp} value={form.seats} onChange={e => set('seats', e.target.value)} min={1} max={20} /></div>
           </div>
-
           <div className="grid grid-cols-3 gap-3">
             <div><label className={lbl}>{fr ? 'Catégorie' : 'Category'}</label>
               <select className={inp} value={form.category} onChange={e => set('category', e.target.value as VehicleCategory)}>
@@ -151,7 +145,6 @@ const VehicleModal = ({ vehicle, onClose, onSaved }: VehicleModalProps) => {
                   <option key={f} value={f}>{f}</option>)}
               </select></div>
           </div>
-
           <div className="grid grid-cols-3 gap-3">
             <div><label className={lbl}>{fr ? 'Prix/Jour (FCFA) *' : 'Price/Day (FCFA) *'}</label>
               <input type="number" className={inp} value={form.pricePerDay} onChange={e => set('pricePerDay', e.target.value)} min={0} /></div>
@@ -165,23 +158,17 @@ const VehicleModal = ({ vehicle, onClose, onSaved }: VehicleModalProps) => {
             <div><label className={lbl}>{fr ? 'Kilométrage' : 'Mileage'}</label>
               <input type="number" className={inp} value={form.mileage} onChange={e => set('mileage', e.target.value)} min={0} /></div>
           </div>
-
           <div><label className={lbl}>{fr ? "URL de l'image" : 'Image URL'}</label>
             <input className={inp} value={form.imageUrl} onChange={e => set('imageUrl', e.target.value)} placeholder="https://..." /></div>
-
           <div><label className={lbl}>{fr ? 'Localisation' : 'Location'}</label>
             <input className={inp} value={form.location} onChange={e => set('location', e.target.value)} placeholder="Douala, Akwa" /></div>
-
           <div><label className={lbl}>{fr ? 'Équipements (virgules)' : 'Features (comma-separated)'}</label>
             <input className={inp} value={form.features} onChange={e => set('features', e.target.value)} placeholder="Climatisation, GPS, Bluetooth" /></div>
-
           <div><label className={lbl}>{fr ? 'Description' : 'Description'}</label>
             <textarea className={`${inp} resize-none`} rows={3} value={form.description}
               onChange={e => set('description', e.target.value)}
               placeholder={fr ? 'Description du véhicule...' : 'Vehicle description...'} /></div>
         </div>
-
-        {/* Footer */}
         <div className="flex justify-end gap-3 p-5 border-t">
           <button onClick={onClose}
             className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition">
@@ -271,14 +258,13 @@ export const AdminDashboard = () => {
   const [loading,  setLoading]  = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('bookings');
 
-  // Vehicle modal state
   const [vehicleModal,    setVehicleModal]    = useState<'create' | 'edit' | 'view' | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [statsRes, bookingsRes, vehiclesRes, usersRes] = await Promise.all([
         bookingAPI.getStats(),
         bookingAPI.getAll(),
@@ -288,53 +274,67 @@ export const AdminDashboard = () => {
       setStats(statsRes.data.data);
       setBookings(bookingsRes.data.data.bookings);
       setVehicles(vehiclesRes.data.data.vehicles);
-      // Support les deux formats de réponse API
       const usersData = usersRes.data.data;
       setUsers(Array.isArray(usersData) ? usersData : (usersData.users ?? []));
       logger.info(CTX, 'Dashboard data loaded');
     } catch {
-      toast.error(fr ? 'Erreur lors du chargement' : 'Error loading data');
+      if (!silent) toast.error(fr ? 'Erreur lors du chargement' : 'Error loading data');
       logger.error(CTX, 'Failed to load dashboard data');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => { fetchData(); }, []);
 
-  // ── Booking ────────────────────────────────────────────────────────────────
+  // ── Booking actions ────────────────────────────────────────────────────────
+  // Optimistic update : état local immédiat + sync silencieux en arrière-plan
   const handleUpdateBookingStatus = async (bookingId: string, newStatus: string) => {
+    setBookings(prev => prev.map(b =>
+      b.id === bookingId ? { ...b, status: newStatus as any } : b
+    ));
     try {
       await bookingAPI.updateStatus(bookingId, newStatus);
       toast.success(t('toast.status_updated'));
-      fetchData();
-    } catch { toast.error(t('toast.error_generic')); }
+      fetchData(true); // sync silencieux
+    } catch {
+      toast.error(t('toast.error_generic'));
+      fetchData(true); // rollback implicite
+    }
   };
 
-  // ── Vehicles ───────────────────────────────────────────────────────────────
+  // ── Vehicle actions ────────────────────────────────────────────────────────
   const handleDeleteVehicle = async (vehicleId: string) => {
     if (!window.confirm(t('admin.confirm.delete_vehicle'))) return;
+    setVehicles(prev => prev.filter(v => v.id !== vehicleId)); // optimistic
     try {
       await vehicleAPI.delete(vehicleId);
       toast.success(t('toast.vehicle_deleted'));
       logger.warn(CTX, 'Vehicle deleted', { vehicleId });
-      fetchData();
+      fetchData(true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || t('toast.error_generic'));
+      fetchData(true); // rollback
     }
   };
 
-  // ── Users ──────────────────────────────────────────────────────────────────
+  // ── User actions ───────────────────────────────────────────────────────────
   const handleToggleStatus = async (userId: string, current: 'ACTIVE' | 'BLOCKED') => {
     const next = current === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
     if (!window.confirm(next === 'BLOCKED'
       ? (fr ? 'Bloquer cet utilisateur ?' : 'Block this user?')
       : (fr ? 'Débloquer ?' : 'Unblock?'))) return;
+    setUsers(prev => prev.map(u =>
+      u.id === userId ? { ...u, status: next } : u
+    )); // optimistic
     try {
       await userAPI.updateStatus(userId, next);
       toast.success(next === 'BLOCKED' ? (fr ? 'Bloqué' : 'Blocked') : (fr ? 'Débloqué' : 'Unblocked'));
-      fetchData();
-    } catch { toast.error(t('toast.error_generic')); }
+      fetchData(true);
+    } catch {
+      toast.error(t('toast.error_generic'));
+      fetchData(true);
+    }
   };
 
   const handleToggleRole = async (userId: string, current: 'USER' | 'ADMIN') => {
@@ -342,47 +342,65 @@ export const AdminDashboard = () => {
     if (!window.confirm(next === 'ADMIN'
       ? (fr ? 'Promouvoir en admin ?' : 'Promote to admin?')
       : (fr ? 'Rétrograder ?' : 'Demote to user?'))) return;
+    setUsers(prev => prev.map(u =>
+      u.id === userId ? { ...u, role: next } : u
+    )); // optimistic
     try {
       await userAPI.updateRole(userId, next);
       toast.success(next === 'ADMIN' ? (fr ? 'Promu admin' : 'Promoted') : (fr ? 'Rétrogradé' : 'Demoted'));
-      fetchData();
-    } catch { toast.error(t('toast.error_generic')); }
+      fetchData(true);
+    } catch {
+      toast.error(t('toast.error_generic'));
+      fetchData(true);
+    }
   };
 
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm(fr ? 'Supprimer cet utilisateur ?' : 'Delete this user?')) return;
+    setUsers(prev => prev.filter(u => u.id !== userId)); // optimistic
     try {
       await userAPI.delete(userId);
       toast.success(fr ? 'Utilisateur supprimé' : 'User deleted');
-      fetchData();
+      fetchData(true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || t('toast.error_generic'));
+      fetchData(true);
     }
   };
 
   // ── Badges ─────────────────────────────────────────────────────────────────
   const bookingBadge = (status: string) => {
     const cls: Record<string, string> = {
-      PENDING: 'bg-yellow-100 text-yellow-800', CONFIRMED: 'bg-green-100 text-green-800',
-      CANCELLED: 'bg-red-100 text-red-800',     COMPLETED: 'bg-blue-100 text-blue-800',
+      PENDING:   'bg-yellow-100 text-yellow-800',
+      CONFIRMED: 'bg-green-100 text-green-800',
+      CANCELLED: 'bg-red-100 text-red-800',
+      COMPLETED: 'bg-blue-100 text-blue-800',
     };
-    return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${cls[status] ?? cls.PENDING}`}>
-      {t(`booking.status.${status}` as any)}
-    </span>;
+    return (
+      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${cls[status] ?? cls.PENDING}`}>
+        {t(`booking.status.${status}` as any)}
+      </span>
+    );
   };
 
   const vehicleBadge = (status: string) => {
     const cls: Record<string, string> = {
-      AVAILABLE: 'bg-green-100 text-green-800', RENTED: 'bg-blue-100 text-blue-800',
-      MAINTENANCE: 'bg-orange-100 text-orange-800', UNAVAILABLE: 'bg-red-100 text-red-800',
+      AVAILABLE:   'bg-green-100 text-green-800',
+      RENTED:      'bg-blue-100 text-blue-800',
+      MAINTENANCE: 'bg-orange-100 text-orange-800',
+      UNAVAILABLE: 'bg-red-100 text-red-800',
     };
     const lbl: Record<string, string> = {
-      AVAILABLE: fr ? 'Disponible' : 'Available', RENTED: fr ? 'Loué' : 'Rented',
-      MAINTENANCE: 'Maintenance', UNAVAILABLE: fr ? 'Indisponible' : 'Unavailable',
+      AVAILABLE:   fr ? 'Disponible' : 'Available',
+      RENTED:      fr ? 'Loué' : 'Rented',
+      MAINTENANCE: 'Maintenance',
+      UNAVAILABLE: fr ? 'Indisponible' : 'Unavailable',
     };
-    return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${cls[status] ?? cls.UNAVAILABLE}`}>
-      {lbl[status] ?? status}
-    </span>;
+    return (
+      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${cls[status] ?? cls.UNAVAILABLE}`}>
+        {lbl[status] ?? status}
+      </span>
+    );
   };
 
   const th = 'px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider';
@@ -434,9 +452,9 @@ export const AdminDashboard = () => {
           <div className="border-b flex items-center justify-between pr-4">
             <div className="flex">
               {([
-                { key: 'bookings', label: `${t('admin.bookings')} (${bookings.length})`,  icon: <FaCalendar /> },
-                { key: 'vehicles', label: `${t('admin.vehicles')} (${vehicles.length})`,  icon: <FaCar /> },
-                { key: 'users',    label: `${t('admin.users')} (${users.length})`,         icon: <FaUsers /> },
+                { key: 'bookings', label: `${t('admin.bookings')} (${bookings.length})`, icon: <FaCalendar /> },
+                { key: 'vehicles', label: `${t('admin.vehicles')} (${vehicles.length})`, icon: <FaCar /> },
+                { key: 'users',    label: `${t('admin.users')} (${users.length})`,        icon: <FaUsers /> },
               ] as { key: TabType; label: string; icon: any }[]).map(tab => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                   className={`flex items-center gap-2 px-5 py-4 text-sm font-medium transition ${
@@ -476,9 +494,18 @@ export const AdminDashboard = () => {
                         <p className="font-medium text-sm">{b.user?.firstName} {b.user?.lastName}</p>
                         <p className="text-xs text-gray-400">{b.user?.email}</p>
                       </td>
-                      <td className={`${td} text-sm text-gray-700`}>
-                        <p>{b.vehicle?.brand} {b.vehicle?.model}</p>
-                        <p className="text-xs text-gray-400">{b.vehicle?.year}</p>
+                      <td className={td}>
+                        <div className="flex items-center gap-3">
+                          {b.vehicle?.imageUrl
+                            ? <img src={b.vehicle.imageUrl} alt="" className="w-12 h-9 object-cover rounded-lg flex-shrink-0" />
+                            : <div className="w-12 h-9 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <FaCar className="text-gray-400" />
+                              </div>}
+                          <div>
+                            <p className="font-medium text-sm">{b.vehicle?.brand} {b.vehicle?.model}</p>
+                            <p className="text-xs text-gray-400">{b.vehicle?.year}</p>
+                          </div>
+                        </div>
                       </td>
                       <td className={`${td} text-sm`}>
                         <p>{new Date(b.startDate).toLocaleDateString('fr-FR')}</p>
@@ -488,14 +515,52 @@ export const AdminDashboard = () => {
                         {Number(b.totalPrice).toLocaleString()} FCFA
                       </td>
                       <td className={td}>{bookingBadge(b.status)}</td>
+                      {/* Actions bookings — icônes contextuelles selon statut */}
                       <td className={td}>
-                        <select value={b.status}
-                          onChange={e => handleUpdateBookingStatus(b.id, e.target.value)}
-                          className="text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-primary-light">
-                          {(['PENDING','CONFIRMED','CANCELLED','COMPLETED'] as const).map(s => (
-                            <option key={s} value={s}>{t(`booking.status.${s}`)}</option>
-                          ))}
-                        </select>
+                        <div className="flex items-center gap-1">
+                          {/* Confirmer : disponible si PENDING */}
+                          {b.status === 'PENDING' && (
+                            <button
+                              onClick={() => handleUpdateBookingStatus(b.id, 'CONFIRMED')}
+                              title={fr ? 'Confirmer' : 'Confirm'}
+                              className="p-1.5 text-green-500 hover:bg-green-50 rounded-lg transition">
+                              <FaCheckCircle size={15} />
+                            </button>
+                          )}
+                          {/* Terminer : disponible si CONFIRMED */}
+                          {b.status === 'CONFIRMED' && (
+                            <button
+                              onClick={() => handleUpdateBookingStatus(b.id, 'COMPLETED')}
+                              title={fr ? 'Terminer' : 'Complete'}
+                              className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition">
+                              <FaFlag size={15} />
+                            </button>
+                          )}
+                          {/* Annuler : disponible si PENDING ou CONFIRMED */}
+                          {(b.status === 'PENDING' || b.status === 'CONFIRMED') && (
+                            <button
+                              onClick={() => handleUpdateBookingStatus(b.id, 'CANCELLED')}
+                              title={fr ? 'Annuler' : 'Cancel booking'}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition">
+                              <FaTimesCircle size={15} />
+                            </button>
+                          )}
+                          {/* Remettre en attente : disponible si CANCELLED */}
+                          {b.status === 'CANCELLED' && (
+                            <button
+                              onClick={() => handleUpdateBookingStatus(b.id, 'PENDING')}
+                              title={fr ? 'Remettre en attente' : 'Reset to pending'}
+                              className="p-1.5 text-yellow-500 hover:bg-yellow-50 rounded-lg transition">
+                              <FaHourglass size={15} />
+                            </button>
+                          )}
+                          {/* COMPLETED : aucune action possible */}
+                          {b.status === 'COMPLETED' && (
+                            <span className="text-xs text-gray-400 italic px-1">
+                              {fr ? 'Terminé' : 'Done'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -611,7 +676,6 @@ export const AdminDashboard = () => {
                       </td>
                       <td className={td}>
                         <div className="flex items-center gap-1.5">
-                          {/* Bloquer / Débloquer */}
                           <button onClick={() => handleToggleStatus(u.id, u.status)}
                             title={u.status === 'ACTIVE' ? (fr ? 'Bloquer' : 'Block') : (fr ? 'Débloquer' : 'Unblock')}
                             className={`p-1.5 rounded-lg transition ${
@@ -621,7 +685,6 @@ export const AdminDashboard = () => {
                             }`}>
                             {u.status === 'ACTIVE' ? <FaBan size={14} /> : <FaCheck size={14} />}
                           </button>
-                          {/* Promouvoir / Rétrograder */}
                           <button onClick={() => handleToggleRole(u.id, u.role)}
                             title={u.role === 'ADMIN' ? (fr ? 'Rétrograder' : 'Demote') : (fr ? 'Promouvoir admin' : 'Make admin')}
                             className={`p-1.5 rounded-lg transition ${
@@ -631,7 +694,6 @@ export const AdminDashboard = () => {
                             }`}>
                             {u.role === 'ADMIN' ? <FaUser size={14} /> : <FaUserShield size={14} />}
                           </button>
-                          {/* Supprimer */}
                           <button onClick={() => handleDeleteUser(u.id)}
                             title={fr ? 'Supprimer' : 'Delete'}
                             className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition">
@@ -653,7 +715,7 @@ export const AdminDashboard = () => {
         <VehicleModal
           vehicle={vehicleModal === 'edit' ? selectedVehicle : null}
           onClose={() => { setVehicleModal(null); setSelectedVehicle(null); }}
-          onSaved={fetchData}
+          onSaved={() => fetchData(true)}
         />
       )}
       {vehicleModal === 'view' && selectedVehicle && (
