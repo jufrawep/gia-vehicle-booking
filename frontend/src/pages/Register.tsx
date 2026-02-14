@@ -28,7 +28,7 @@ const COUNTRY_CODES = [
 ];
 
 export const Register = () => {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const { register } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -84,7 +84,16 @@ export const Register = () => {
       });
       logger.info(CTX, 'Registration successful');
     } catch (error: any) {
-      logger.error(CTX, 'Registration failed', { error: error?.response?.data?.message });
+      const msg = error?.response?.data?.message || '';
+      // Message spécifique si email déjà utilisé
+      if (msg.toLowerCase().includes('already exists') || error?.response?.status === 409 || error?.response?.status === 400) {
+        toast.error(lang === 'fr'
+          ? 'Un compte existe déjà avec cette adresse email.'
+          : 'An account already exists with this email address.');
+      } else {
+        toast.error(lang === 'fr' ? 'Erreur lors de l\'inscription. Réessayez.' : 'Registration error. Please try again.');
+      }
+      logger.error(CTX, 'Registration failed', { error: msg });
     } finally {
       setLoading(false);
     }

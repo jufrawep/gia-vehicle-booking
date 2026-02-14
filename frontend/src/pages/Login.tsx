@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
@@ -9,8 +9,20 @@ import { logger } from '../utils/logger';
 const CTX = 'Login';
 
 export const Login = () => {
-  const { t } = useTranslation();
-  const { login } = useAuth();
+  const { t, lang }              = useTranslation();
+  const { login, isAuthenticated, user } = useAuth();
+  const navigate                 = useNavigate();
+
+  // ── Si déjà connecté → rediriger directement sans afficher le formulaire ──
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      logger.info(CTX, 'Already authenticated — redirecting', { role: user.role });
+      toast.info(lang === 'fr'
+        ? `Déjà connecté en tant que ${user.firstName}. Redirection...`
+        : `Already signed in as ${user.firstName}. Redirecting...`);
+      navigate(user.role === 'ADMIN' ? '/admin' : '/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, user, navigate, lang]);
 
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
@@ -96,6 +108,7 @@ export const Login = () => {
               {loading ? t('auth.login.loading') : t('auth.login.submit')}
             </button>
           </form>
+
 
           <p className="mt-5 text-center text-gray-600 text-sm">
             {t('auth.login.no_account')}{' '}
