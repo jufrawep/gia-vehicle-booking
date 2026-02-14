@@ -109,7 +109,7 @@ export const createBooking = asyncHandler(
     const conflicts = await prisma.booking.findMany({
       where: {
         vehicle_id: validated.vehicleId,
-        status:     { in: [...BLOCKING_STATUSES]},
+        status:     { in: [...BLOCKING_STATUSES] },
         OR: [
           { AND: [{ start_date: { lte: startDate } }, { end_date: { gte: startDate } }] },
           { AND: [{ start_date: { lte: endDate   } }, { end_date: { gte: endDate   } }] },
@@ -155,6 +155,7 @@ export const createBooking = asyncHandler(
       startDate:   startDate.toLocaleDateString('fr-FR'),
       endDate:     endDate.toLocaleDateString('fr-FR'),
       totalPrice,
+      userId,
     }).catch(err => logger.error(CTX, 'Confirmation email failed', { bookingId: booking.id, error: err.message }));
 
     res.status(201).json({
