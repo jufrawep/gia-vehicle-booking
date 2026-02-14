@@ -3,7 +3,7 @@
  * @desc  Authentication controller — register, login, getMe.
  *
  * Corrections vs original:
- *   - password_hash → password  (field name aligned with Prisma schema @map)
+ *   - password field: column name is `password` in DB (stores bcrypt hash)
  *   - login now checks user.status === 'BLOCKED' before verifying password
  *   - role stored and returned UPPERCASE ('USER' | 'ADMIN')
  *   - all DB field names aligned with snake_case schema
@@ -78,7 +78,7 @@ export const register = asyncHandler(
     const user = await prisma.user.create({
       data: {
         email:      validated.email,
-        password:   hashedPassword,   // maps to password_hash column
+        password:   hashedPassword,   // bcrypt hash stored in `password` column
         first_name: validated.firstName,
         last_name:  validated.lastName,
         phone:      validated.phone || null,
@@ -97,7 +97,7 @@ export const register = asyncHandler(
     logger.info(CTX, 'User registered', { userId: user.id, email: user.email });
 
     // Fire-and-forget — email failure must not block the response
-    sendWelcomeEmail(user.email, user.first_name).catch(err =>
+    sendWelcomeEmail(user.email, user.first_name, user.id).catch(err =>
       logger.error(CTX, 'Welcome email failed', { userId: user.id, error: err.message })
     );
 
@@ -136,7 +136,7 @@ export const login = asyncHandler(
       return next(new AppError('Your account has been suspended. Please contact support.', 403));
     }
 
-    // `user.password` maps to the password_hash column in the DB
+    // `user.password` is the bcrypt hash stored in the `password` column
     const isPasswordValid = await bcrypt.compare(validated.password, user.password);
     if (!isPasswordValid) {
       logger.warn(CTX, 'Login failed — wrong password', { email: validated.email });

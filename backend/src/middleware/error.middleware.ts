@@ -68,6 +68,12 @@ export const errorHandler = (
       statusCode = 404;
       message    = 'Record not found.';
     } else {
+      // Log le code Prisma précis pour faciliter le debug
+      logger.error('ErrorMiddleware', 'Prisma known error detail', {
+        code:    err.code,
+        meta:    err.meta,
+        message: err.message,
+      });
       message = 'Database integrity error. Please check your data.';
     }
   }
