@@ -1,8 +1,9 @@
-import { Routes, Route } from 'react-router-dom';
-import { AuthProvider }    from './context/AuthContext';
-import { Navbar }          from './components/Navbar';
-import { Footer }          from './components/Footer';
-import { ProtectedRoute }  from './components/ProtectedRoute';
+import { Routes, Route }   from 'react-router-dom';
+import { AuthProvider }     from './context/AuthContext';
+import { LangProvider }     from './i18n';              // ← Context global de langue
+import { Navbar }           from './components/Navbar';
+import { Footer }           from './components/Footer';
+import { ProtectedRoute }   from './components/ProtectedRoute';
 
 // Pages
 import { Home }           from './pages/Home';
@@ -18,39 +19,44 @@ import { NotFound }       from './pages/NotFound';
 
 function App() {
   return (
-    <AuthProvider>
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
+    // LangProvider DOIT être le premier wrapper :
+    // tous les composants enfants partagent le même état `lang`,
+    // donc setLang() dans la Navbar re-rend IMMÉDIATEMENT tout l'arbre.
+    <LangProvider>
+      <AuthProvider>
+        <div className="flex flex-col min-h-screen">
+          <Navbar />
 
-        <main className="flex-grow">
-          <Routes>
-            {/* ── Public ── */}
-            <Route path="/"                element={<Home />} />
-            <Route path="/login"           element={<Login />} />
-            <Route path="/register"        element={<Register />} />
-            <Route path="/vehicles"        element={<Vehicles />} />
-            <Route path="/vehicles/:id"    element={<VehicleDetails />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password"  element={<ResetPassword />} />
+          <main className="flex-grow">
+            <Routes>
+              {/* ── Public ── */}
+              <Route path="/"                element={<Home />} />
+              <Route path="/login"           element={<Login />} />
+              <Route path="/register"        element={<Register />} />
+              <Route path="/vehicles"        element={<Vehicles />} />
+              <Route path="/vehicles/:id"    element={<VehicleDetails />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password"  element={<ResetPassword />} />
 
-            {/* ── Protected — User ── */}
-            <Route path="/dashboard" element={
-              <ProtectedRoute><Dashboard /></ProtectedRoute>
-            } />
+              {/* ── Protected — User ── */}
+              <Route path="/dashboard" element={
+                <ProtectedRoute><Dashboard /></ProtectedRoute>
+              } />
 
-            {/* ── Protected — Admin ── */}
-            <Route path="/admin" element={
-              <ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>
-            } />
+              {/* ── Protected — Admin ── */}
+              <Route path="/admin" element={
+                <ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>
+              } />
 
-            {/* ── 404 ── */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
+              {/* ── 404 ── */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
 
-        <Footer />
-      </div>
-    </AuthProvider>
+          <Footer />
+        </div>
+      </AuthProvider>
+    </LangProvider>
   );
 }
 
