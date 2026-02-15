@@ -153,7 +153,7 @@ export const sendBookingConfirmation = async (
           background-color: white;
         }
         .header { 
-          background: linear-gradient(135deg, #0A1F44 0%, #1e3a8a 100%); 
+          background: linear-gradient(135deg, #2A3180  0%, #1e3a8a 100%); 
           color: white; 
           padding: 30px 20px; 
           text-align: center;
@@ -170,7 +170,7 @@ export const sendBookingConfirmation = async (
         .details { 
           background-color: #f8fafc; 
           padding: 25px; 
-          border-left: 4px solid #00B4D8;
+          border-left: 4px solid #189CD9 ;
           border-radius: 5px;
           margin: 25px 0;
         }
@@ -198,7 +198,7 @@ export const sendBookingConfirmation = async (
         .button { 
           display: inline-block; 
           padding: 14px 32px; 
-          background: linear-gradient(135deg, #00B4D8 0%, #0096c7 100%); 
+          background: linear-gradient(135deg, #189CD9  0%, #0096c7 100%); 
           color: white; 
           text-decoration: none; 
           border-radius: 8px; 
@@ -243,7 +243,7 @@ export const sendBookingConfirmation = async (
           <p>Voici le récapitulatif de votre réservation :</p>
           
           <div class="details">
-            <h3 style="margin-top: 0; color: #0A1F44;">📋 Détails de la réservation</h3>
+            <h3 style="margin-top: 0; color: #2A3180 ;">📋 Détails de la réservation</h3>
             
             <div class="detail-item">
               <div class="detail-label">N° de réservation :</div>
@@ -376,7 +376,7 @@ export const sendWelcomeEmail = async (email: string, name: string, userId: stri
           box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         .header { 
-          background: linear-gradient(135deg, #0A1F44 0%, #1e3a8a 100%); 
+          background: linear-gradient(135deg, #2A3180  0%, #1e3a8a 100%); 
           color: white; 
           padding: 40px 20px; 
           text-align: center;
@@ -411,17 +411,17 @@ export const sendWelcomeEmail = async (email: string, name: string, userId: stri
           padding: 12px 15px;
           background-color: #f8fafc;
           border-radius: 8px;
-          border-left: 4px solid #00B4D8;
+          border-left: 4px solid #189CD9 ;
         }
         .feature-icon {
           font-size: 20px;
           margin-right: 15px;
-          color: #00B4D8;
+          color: #189CD9 ;
         }
         .button { 
           display: inline-block; 
           padding: 16px 36px; 
-          background: linear-gradient(135deg, #00B4D8 0%, #0096c7 100%); 
+          background: linear-gradient(135deg, #189CD9  0%, #0096c7 100%); 
           color: white; 
           text-decoration: none; 
           border-radius: 8px; 
@@ -449,7 +449,7 @@ export const sendWelcomeEmail = async (email: string, name: string, userId: stri
           font-size: 13px;
         }
         .highlight {
-          color: #0A1F44;
+          color: #2A3180 ;
           font-weight: 600;
         }
         @media (max-width: 600px) {
@@ -476,7 +476,7 @@ export const sendWelcomeEmail = async (email: string, name: string, userId: stri
           </div>
           
           <div class="features">
-            <p style="font-weight: 600; color: #0A1F44; margin-bottom: 15px;">Ce que vous pouvez faire :</p>
+            <p style="font-weight: 600; color: #2A3180 ; margin-bottom: 15px;">Ce que vous pouvez faire :</p>
             
             <div class="feature-item">
               <div class="feature-icon">🚗</div>
@@ -599,7 +599,7 @@ export const sendPasswordResetEmail = async (email: string, resetToken: string, 
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         .header { 
-          background-color: #0A1F44; 
+          background-color: #2A3180 ; 
           color: white; 
           padding: 30px 20px; 
           text-align: center;
@@ -700,10 +700,293 @@ export const sendPasswordResetEmail = async (email: string, resetToken: string, 
   });
 };
 
+/**
+ * Email de confirmation de paiement
+ * Envoyé après un paiement réussi
+ */
+export const sendPaymentConfirmation = async (
+  email: string,
+  paymentDetails: {
+    userName:      string;
+    userId:        string;
+    transactionId: string;
+    vehicleName:   string;
+    startDate:     string;
+    endDate:       string;
+    totalDays:     number;
+    amount:        number;
+    paymentMethod: string;
+    cardMasked:    string;
+  }
+): Promise<void> => {
+  const methodLabel = paymentDetails.paymentMethod === 'CARD' ? 'Carte bancaire' : paymentDetails.paymentMethod;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { 
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background-color: white;
+        }
+        .header { 
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+          color: white; 
+          padding: 30px 20px; 
+          text-align: center;
+          border-radius: 5px 5px 0 0;
+        }
+        .logo {
+          font-size: 28px;
+          font-weight: bold;
+          margin-bottom: 10px;
+        }
+        .success-icon {
+          font-size: 48px;
+          margin-bottom: 10px;
+        }
+        .content { 
+          padding: 30px; 
+        }
+        .details { 
+          background-color: #f8fafc; 
+          padding: 25px; 
+          border-left: 4px solid #10b981;
+          border-radius: 5px;
+          margin: 25px 0;
+        }
+        .detail-item {
+          margin-bottom: 10px;
+          display: flex;
+        }
+        .detail-label {
+          font-weight: 600;
+          width: 140px;
+          color: #4a5568;
+        }
+        .detail-value {
+          flex: 1;
+          color: #2d3748;
+        }
+        .amount-box {
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: white;
+          padding: 20px;
+          border-radius: 8px;
+          text-align: center;
+          margin: 25px 0;
+        }
+        .amount-label {
+          font-size: 14px;
+          opacity: 0.9;
+          margin-bottom: 5px;
+        }
+        .amount-value {
+          font-size: 32px;
+          font-weight: bold;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 40px; 
+          padding-top: 20px;
+          border-top: 1px solid #e2e8f0;
+          color: #718096; 
+          font-size: 14px;
+        }
+        .button { 
+          display: inline-block; 
+          padding: 14px 32px; 
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+          color: white; 
+          text-decoration: none; 
+          border-radius: 8px; 
+          margin-top: 25px;
+          font-weight: 600;
+          font-size: 16px;
+          border: none;
+          cursor: pointer;
+        }
+        .greeting {
+          font-size: 18px;
+          color: #2d3748;
+          margin-bottom: 20px;
+        }
+        .security-note {
+          background-color: #f0fdf4;
+          border: 1px solid #bbf7d0;
+          padding: 15px;
+          border-radius: 8px;
+          margin: 20px 0;
+          font-size: 14px;
+          color: #166534;
+        }
+        @media (max-width: 600px) {
+          .content { padding: 20px; }
+          .details { padding: 15px; }
+          .button { width: 100%; text-align: center; }
+          .detail-item { flex-direction: column; }
+          .detail-label { width: 100%; margin-bottom: 5px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="success-icon">✅</div>
+          <div class="logo">GIA VEHICLE BOOKING</div>
+          <h1>Paiement Confirmé</h1>
+        </div>
+        
+        <div class="content">
+          <div class="greeting">
+            Bonjour ${paymentDetails.userName},<br>
+            Votre paiement a été traité avec succès !
+          </div>
+          
+          <div class="amount-box">
+            <div class="amount-label">MONTANT PAYÉ</div>
+            <div class="amount-value">${paymentDetails.amount.toLocaleString()} FCFA</div>
+          </div>
+          
+          <p>Voici le récapitulatif de votre transaction :</p>
+          
+          <div class="details">
+            <h3 style="margin-top: 0; color: #10b981;">📋 Détails du paiement</h3>
+            
+            <div class="detail-item">
+              <div class="detail-label">N° de transaction :</div>
+              <div class="detail-value"><strong>${paymentDetails.transactionId}</strong></div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Véhicule :</div>
+              <div class="detail-value">${paymentDetails.vehicleName}</div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Période :</div>
+              <div class="detail-value">${paymentDetails.startDate} → ${paymentDetails.endDate}</div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Durée :</div>
+              <div class="detail-value">${paymentDetails.totalDays} jour${paymentDetails.totalDays > 1 ? 's' : ''}</div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Mode de paiement :</div>
+              <div class="detail-value">${methodLabel}</div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Carte :</div>
+              <div class="detail-value">${paymentDetails.cardMasked}</div>
+            </div>
+          </div>
+          
+          <div class="security-note">
+            🔒 <strong>Paiement sécurisé</strong><br>
+            Votre transaction a été traitée de manière sécurisée. Conservez cet email comme justificatif de paiement.
+          </div>
+          
+          <p style="margin-bottom: 25px;">
+            Votre ticket de paiement est disponible dans votre espace client. Vous pouvez le télécharger et l'imprimer à tout moment.
+          </p>
+          
+          <center>
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard" class="button">
+              👁️ Voir mon ticket
+            </a>
+          </center>
+          
+          <div style="margin-top: 30px; font-style: italic; color: #4a5568;">
+            <p>Merci de votre confiance,</p>
+            <p><strong>L'équipe GIA Vehicle Booking</strong></p>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <p>GIA Group - Douala, Cameroun</p>
+          <p>Téléphone: +237 672 969 799 | Email: contact@giagroup.net</p>
+          <p>© ${new Date().getFullYear()} GIA Group. Tous droits réservés.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+Paiement Confirmé - GIA Vehicle Booking
+
+Bonjour ${paymentDetails.userName},
+
+Votre paiement a été traité avec succès !
+
+MONTANT PAYÉ : ${paymentDetails.amount.toLocaleString()} FCFA
+
+Détails du paiement :
+- N° de transaction : ${paymentDetails.transactionId}
+- Véhicule : ${paymentDetails.vehicleName}
+- Période : ${paymentDetails.startDate} → ${paymentDetails.endDate}
+- Durée : ${paymentDetails.totalDays} jour${paymentDetails.totalDays > 1 ? 's' : ''}
+- Mode de paiement : ${methodLabel}
+- Carte : ${paymentDetails.cardMasked}
+
+🔒 Paiement sécurisé
+Votre transaction a été traitée de manière sécurisée. Conservez cet email comme justificatif de paiement.
+
+Votre ticket de paiement est disponible dans votre espace client :
+${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard
+
+Merci de votre confiance,
+
+L'équipe GIA Vehicle Booking
+GIA Group - Douala, Cameroun
+Téléphone: +237 672 969 799
+Email: contact@giagroup.net
+
+© ${new Date().getFullYear()} GIA Group. Tous droits réservés.
+  `;
+
+  await sendEmail({
+    to: email,
+    subject: `✅ Paiement confirmé - ${paymentDetails.transactionId}`,
+    html,
+    text
+  });
+
+  // ── Persistance en base ──────────────────────────────────────────────────
+  await createNotification({
+    userId:  paymentDetails.userId,
+    type:    'PAYMENT_CONFIRMATION',
+    title:   `Paiement confirmé — ${paymentDetails.vehicleName}`,
+    message: `Votre paiement de ${paymentDetails.amount.toLocaleString()} FCFA a été traité avec succès. Transaction : ${paymentDetails.transactionId}`,
+    metadata: {
+      transactionId: paymentDetails.transactionId,
+      vehicleName:   paymentDetails.vehicleName,
+      amount:        paymentDetails.amount,
+      paymentMethod: paymentDetails.paymentMethod,
+    },
+  });
+};
+
 // Export par défaut
 export default {
   sendEmail,
   sendBookingConfirmation,
   sendWelcomeEmail,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendPaymentConfirmation
 };
