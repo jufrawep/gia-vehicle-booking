@@ -66,7 +66,22 @@ export const VehicleDetails = () => {
       toast.info(lang === 'fr'
         ? 'Connectez-vous pour continuer votre réservation'
         : 'Please log in to continue your booking');
-      navigate('/login', { state: { from: `/vehicles/${id}` } });
+      // Sauvegarder les données de réservation dans localStorage
+    if (startDate && endDate && vehicle) {
+      localStorage.setItem('pendingBooking', JSON.stringify({
+        vehicleId: id,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        notes,
+        vehicleInfo: {
+          brand: vehicle.brand,
+          model: vehicle.model,
+          imageUrl: vehicle.imageUrl
+        }
+      }));
+    }
+
+navigate('/login', { state: { from: `/vehicles/${id}`, returnTo: 'booking' } });
       return;
     }
     if (!startDate || !endDate) {
