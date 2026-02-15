@@ -1,3 +1,12 @@
+/**
+ * @file  prisma.util.ts
+ * @desc  Prisma client singleton with connection handling.
+ *
+ * Features:
+ *   - Single Prisma instance exported for the entire application
+ *   - Explicit connection test on startup
+ *   - Graceful shutdown on process exit
+ */
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
