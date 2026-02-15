@@ -77,28 +77,10 @@ function emit(level: Level, context: string, message: string, meta?: Meta): void
 // ─── Public Logger API ────────────────────────────────────────────────────────
 
 export const logger = {
-  /**
-   * Fine-grained diagnostics. Never log PII or secrets here.
-   * Only visible when LOG_LEVEL=debug.
-   */
+
   debug: (ctx: string, msg: string, meta?: Meta) => emit('debug', ctx, msg, meta),
-
-  /**
-   * Standard operational events confirming expected behavior.
-   * e.g. "Booking CONFIRMED", "User authenticated"
-   */
   info:  (ctx: string, msg: string, meta?: Meta) => emit('info',  ctx, msg, meta),
-
-  /**
-   * Potential issues that don't halt execution but signal degradation.
-   * e.g. "Email SMTP unavailable — skipping notification"
-   */
   warn:  (ctx: string, msg: string, meta?: Meta) => emit('warn',  ctx, msg, meta),
-
-  /**
-   * Unrecoverable failures requiring immediate attention.
-   * e.g. "Database connection refused"
-   */
   error: (ctx: string, msg: string, meta?: Meta) => emit('error', ctx, msg, meta),
 };
 
