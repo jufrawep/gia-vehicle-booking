@@ -61,11 +61,12 @@ const corsOptions = {
       ].filter(Boolean);
     }
 
+    
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       logger.warn('CORS', `Blocked request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      callback(null, false); 
     }
   },
   credentials:     true,
@@ -73,7 +74,10 @@ const corsOptions = {
   allowedHeaders:  ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders:  ['Content-Range', 'X-Content-Range'],
   maxAge:          86400,
+  preflightContinue: false, 
+  optionsSuccessStatus: 204, 
 };
+
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
