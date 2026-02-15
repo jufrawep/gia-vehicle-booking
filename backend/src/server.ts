@@ -35,51 +35,15 @@ const PORT = process.env.PORT || 5000;
 app.use(helmet());
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-const corsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    let allowedOrigins: (string | undefined)[];
+app.use(cors({
+  origin: true,  // Accepte TOUTES les origins
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}));
 
-    if (process.env.NODE_ENV === 'development') {
-      allowedOrigins = [
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'http://localhost:8080',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:8080',
-        process.env.FRONTEND_URL,
-        'https://gia-vehicle-booking.vercel.app',
-        'https://gia-vehicle-booking-mocha.vercel.app',
-        'https://gia-vehicle-booking-test.vercel.app',
-      ].filter(Boolean);
-    } else {
-      allowedOrigins = [
-        process.env.FRONTEND_URL,
-        'https://gia-vehicle-booking.vercel.app',
-        'https://gia-vehicle-booking-mocha.vercel.app',
-        'https://gia-vehicle-booking-test.vercel.app',
-      ].filter(Boolean);
-    }
+app.options('*', cors());
 
-    
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      logger.warn('CORS', `Blocked request from origin: ${origin}`);
-      callback(null, false); 
-    }
-  },
-  credentials:     true,
-  methods:         ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders:  ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders:  ['Content-Range', 'X-Content-Range'],
-  maxAge:          86400,
-  preflightContinue: false, 
-  optionsSuccessStatus: 204, 
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 const limiter = rateLimit({
