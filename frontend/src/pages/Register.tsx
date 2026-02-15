@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link ,useNavigate} from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { FaUser, FaEnvelope, FaLock, FaPhone, FaEye, FaEyeSlash, FaChevronDown } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { PasswordStrength } from '../components/PasswordStrength';
 import { useTranslation } from '../i18n';
 import { logger } from '../utils/logger';
+import { bookingAPI} from '../services/api';
 
 const CTX = 'Register';
 
@@ -30,6 +31,7 @@ const COUNTRY_CODES = [
 export const Register = () => {
   const { t, lang } = useTranslation();
   const { register } = useAuth();
+  const navigate                                  = useNavigate();
 
   const [formData, setFormData] = useState({
     firstName:       '',
@@ -75,17 +77,32 @@ export const Register = () => {
         ? `${selectedCountry.code}${formData.phone.replace(/\s/g, '')}`
         : undefined;
 
-      await register({
-        firstName: formData.firstName,
-        lastName:  formData.lastName,
-        email:     formData.email,
-        phone,
-        password:  formData.password,
-      });
-      logger.info(CTX, 'Registration successful');
+     await register({
+  firstName: formData.firstName,
+  lastName:  formData.lastName,
+  email:     formData.email,
+  phone,
+  password:  formData.password,
+});
+
+const pendingBooking = localStorage.getItem('pendingBooking');
+    if (pendingBooking) {
+      try {
+        const bookingData = JSON.parse(pendingBooking);
+        await bookingAPI.create(bookingData);
+        localStorage.removeItem('pendingBooking');
+        toast.success(t('toast.booking_success'));
+        logger.info(CTX, 'Pending booking created after registration');
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || t('toast.error_generic'));
+        logger.error(CTX, 'Failed to create pending booking', error);
+      }
+      navigate('/dashboard');
+    }
+
+    logger.info(CTX, 'Registration successful');
     } catch (error: any) {
       const msg = error?.response?.data?.message || '';
-      // Message spécifique si email déjà utilisé
       if (msg.toLowerCase().includes('already exists') || error?.response?.status === 409 || error?.response?.status === 400) {
         toast.error(lang === 'fr'
           ? 'Un compte existe déjà avec cette adresse email.'
