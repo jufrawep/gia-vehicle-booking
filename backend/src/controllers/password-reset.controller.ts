@@ -59,9 +59,6 @@ export const forgotPassword = asyncHandler(
     const resetToken = crypto.randomBytes(32).toString('base64url');
     const expiresAt  = new Date(Date.now() + 3_600_000); // 1 hour TTL
 
-    // $executeRaw avec paramètres préparés : contourne le bug de sérialisation
-    // de prisma.user.update() sur AdminPermission[] (tableau d'enum PostgreSQL)
-    // qui injecte des bytes nuls (\x00) dans le UPDATE complet généré par Prisma.
     await prisma.$executeRaw`
       UPDATE users
       SET

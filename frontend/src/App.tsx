@@ -16,6 +16,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword }  from './pages/ResetPassword';
 import { NotFound }       from './pages/NotFound';
+import { PaymentPage }    from './pages/Payment';
 
 function App() {
   return (
@@ -44,6 +45,10 @@ function App() {
               } />
 
               {/* ── Protected — Admin ── */}
+              <Route path="/payment/:bookingId" element={
+                <ProtectedRoute><PaymentPage /></ProtectedRoute>
+              } />
+
               <Route path="/admin" element={
                 <ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>
               } />

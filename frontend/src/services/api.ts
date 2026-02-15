@@ -113,4 +113,25 @@ export const newsletterAPI = {
   subscribe: (email: string) => api.post('/newsletter/subscribe', { email }),
 };
 
+
+// ── Payments ──────────────────────────────────────────────────────────────────
+export const paymentAPI = {
+  process: (data: {
+    bookingId:     string;
+    cardNumber:    string;
+    cardHolder:    string;
+    expiryDate:    string;
+    cvv:           string;
+    paymentMethod?: string;
+  }) => api.post('/payments/process', data),
+
+  getTicket: (bookingId: string) => api.get(`/payments/${bookingId}`),
+  getAll: (filters?: {
+    dateFrom?:     string;
+    dateTo?:       string;
+    status?:       string;
+    paymentMethod?: string;
+  }) => api.get('/payments', { params: filters }),
+};
+
 export default api;

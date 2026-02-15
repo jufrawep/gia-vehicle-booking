@@ -109,20 +109,23 @@ export interface VehicleFilters {
 // UPPERCASE — ancienne version avait 'pending'/'confirmed' en minuscules
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
 
+export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+
 export interface Booking {
-  id:         string;
-  userId:     string;
-  vehicleId:  string;
-  startDate:  string;
-  endDate:    string;
-  totalDays?: number;          // ← ajouté
-  totalPrice: number;
-  status:     BookingStatus;   // ← UPPERCASE enum (était minuscules)
-  notes?:     string;
-  createdAt:  string;
-  updatedAt:  string;
-  vehicle?:   Vehicle;
-  user?:      User;
+  id:             string;
+  userId:         string;
+  vehicleId:      string;
+  startDate:      string;
+  endDate:        string;
+  totalDays?:     number;
+  totalPrice:     number;
+  status:         BookingStatus;    // UPPERCASE enum
+  paymentStatus?: PaymentStatus;    // ← ajouté pour le module paiement
+  notes?:         string;
+  createdAt:      string;
+  updatedAt:      string;
+  vehicle?:       Vehicle;
+  user?:          User;
 }
 
 export interface BookingFormData {

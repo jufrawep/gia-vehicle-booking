@@ -18,6 +18,7 @@ import vehicleRoutes    from './routes/vehicle.routes';
 import bookingRoutes    from './routes/booking.routes';
 import userRoutes       from './routes/user.routes';
 import newsletterRoutes from './routes/newsletter.routes';
+import paymentRoutes    from './routes/payment.routes';
 
 // Middleware
 import { errorHandler }  from './middleware/error.middleware';
@@ -106,6 +107,7 @@ app.use('/api/vehicles',   vehicleRoutes);
 app.use('/api/bookings',   bookingRoutes);
 app.use('/api/users',      userRoutes);
 app.use('/api/newsletter', newsletterRoutes);
+app.use('/api/payments',   paymentRoutes);
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use('*', (_req: Request, res: Response) => {

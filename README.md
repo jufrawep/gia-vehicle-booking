@@ -69,8 +69,8 @@ Build a comprehensive platform enabling users to:
 ### Color Palette
 ```css
 /* Primary */
---primary-dark:  #1A2B4A;   /* Dark navy blue */
---primary-light: #2E86C1;   /* GIA cyan blue */
+--primary-dark:  #2A3180 ;   /* Dark navy blue */
+--primary-light: #189CD9 ;   /* GIA cyan blue */
 
 /* Secondary */
 --white:    #FFFFFF;
