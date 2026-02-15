@@ -53,6 +53,7 @@ enum BookingStatus {
   CONFIRMED
   CANCELLED
   COMPLETED
+  IN_PROGRESS
 }
 
 // ACTIVE  → default; can authenticate and book
