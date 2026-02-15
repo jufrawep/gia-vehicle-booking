@@ -5,45 +5,67 @@ import { FaEnvelope, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { useTranslation } from '../i18n';
 import { logger } from '../utils/logger';
+import { bookingAPI} from '../services/api';
 
 const CTX = 'Login';
 
 export const Login = () => {
-  const { t, lang }              = useTranslation();
-  const { login, isAuthenticated, user } = useAuth();
-  const navigate                 = useNavigate();
+  const { t }                                    = useTranslation();
+  const { login, isAuthenticated, user, loading } = useAuth();
+  const navigate                                  = useNavigate();
 
-  // ── Si déjà connecté → rediriger directement sans afficher le formulaire ──
+  // ── Si déjà connecté au montage → redirection SILENCIEUSE ────────────────────
+  // On attend loading=false pour éviter de réagir au flash d'initialisation
+  // d'AuthContext (réhydratation du token depuis localStorage).
+  // AUCUN toast ici : AuthContext.login() affiche déjà "Bienvenue, X !"
+  // après une connexion réussie. Afficher un toast ici crée un doublon.
   useEffect(() => {
-    if (isAuthenticated && user) {
-      logger.info(CTX, 'Already authenticated — redirecting', { role: user.role });
-      toast.info(lang === 'fr'
-        ? `Déjà connecté en tant que ${user.firstName}. Redirection...`
-        : `Already signed in as ${user.firstName}. Redirecting...`);
+    if (!loading && isAuthenticated && user) {
+      logger.info(CTX, 'Already authenticated — silent redirect', { role: user.role });
       navigate(user.role === 'ADMIN' ? '/admin' : '/dashboard', { replace: true });
     }
-  }, [isAuthenticated, user, navigate, lang]);
+  }, [loading, isAuthenticated, user, navigate]);
 
-  const [email,       setEmail]       = useState('');
-  const [password,    setPassword]    = useState('');
-  const [loading,     setLoading]     = useState(false);
+  const [email,        setEmail]        = useState('');
+  const [password,     setPassword]     = useState('');
+  const [submitting,   setSubmitting]   = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    logger.info(CTX, 'Login attempt', { email });
-    setLoading(true);
-    try {
-      await login(email, password);
-      logger.info(CTX, 'Login successful');
-    } catch (error: any) {
-      const msg = error?.response?.data?.message || t('toast.error_generic');
-      logger.warn(CTX, 'Login failed', { status: error?.response?.status });
-      toast.error(msg);
-    } finally {
-      setLoading(false);
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  logger.info(CTX, 'Login attempt', { email });
+  setSubmitting(true);
+  
+  try {
+    await login(email, password);
+    
+    // Vérifier s'il y a une réservation en attente
+    const pendingBooking = localStorage.getItem('pendingBooking');
+    if (pendingBooking) {
+      try {
+        const bookingData = JSON.parse(pendingBooking);
+        await bookingAPI.create(bookingData);
+        localStorage.removeItem('pendingBooking');
+        toast.success(t('toast.booking_success'));
+        logger.info(CTX, 'Pending booking created after login');
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || t('toast.error_generic'));
+        logger.error(CTX, 'Failed to create pending booking', error);
+      }
+      // IMPORTANT: navigate APRÈS la création
+      navigate('/dashboard');
     }
-  };
+    // Sinon, la navigation est gérée par AuthContext
+    
+    logger.info(CTX, 'Login successful');
+  } catch (error: any) {
+    const msg = error?.response?.data?.message || t('toast.error_generic');
+    logger.warn(CTX, 'Login failed', { status: error?.response?.status });
+    toast.error(msg);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
@@ -103,12 +125,11 @@ export const Login = () => {
               </Link>
             </div>
 
-            <button type="submit" disabled={loading}
+            <button type="submit" disabled={submitting}
               className="w-full bg-primary-dark text-white py-3 rounded-lg font-bold hover:bg-primary-light transition disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? t('auth.login.loading') : t('auth.login.submit')}
+              {submitting ? t('auth.login.loading') : t('auth.login.submit')}
             </button>
           </form>
-
 
           <p className="mt-5 text-center text-gray-600 text-sm">
             {t('auth.login.no_account')}{' '}
