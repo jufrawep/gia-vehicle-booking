@@ -468,7 +468,21 @@ export const getBookingStats = asyncHandler(
   }
 );
 
-// Create booking on behalf of a user (ADMIN + CREATE permission)
+/**
+ * ADMIN CREATE BOOKING (Admin Only)
+ * Creates a booking on behalf of a user (requires ADMIN role + CREATE permission).
+ *
+ * Flow:
+ * 1. Validates required fields (vehicleId, userId, startDate, endDate)
+ * 2. Checks date logic (End date must be after Start date)
+ * 3. Verifies vehicle and user existence in database
+ * 4. Conflict detection: checks for overlapping PENDING or CONFIRMED bookings
+ * 5. Calculates total price based on vehicle's daily rate and number of days
+ * 6. Creates booking with CONFIRMED status (auto-confirmed for admin)
+ * 7. Returns formatted booking data with vehicle and user details
+ *
+ * Security: Accessible only by users with ADMIN role and CREATE permission
+ */
 export const adminCreateBooking = asyncHandler(
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { vehicleId, userId, startDate, endDate, notes } = req.body;
