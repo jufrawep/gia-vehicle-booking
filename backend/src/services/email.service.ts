@@ -1,54 +1,66 @@
-import nodemailer from 'nodemailer';
-import prisma from '../utils/prisma.util';
-import { logger } from '../utils/logger.util';
+ /* @desc  Email service using Nodemailer with Gmail SMTP.
+ *
+ * Features:
+ *   - Sends transactional emails (booking confirmation, welcome, password reset, payment)
+ *   - Persists each sent email as a notification in the database
+ *   - Fire‑and‑forget design – never blocks the main flow
+ *   - Development mode simulates sending when credentials are missing
+ *   - Detailed error logging with actionable suggestions
+ *
+ */
 
-const SVC = 'EmailService';
+import nodemailer from "nodemailer";
+import prisma from "../utils/prisma.util";
+import { logger } from "../utils/logger.util";
 
-// ─── Helper : persiste chaque email envoyé dans la table notifications ────────
+const SVC = "EmailService";
+
+// ─── Helper: persists each sent email in the notifications table ────────
 /**
- * Crée une entrée dans la table `notifications` après l'envoi d'un email.
- * userId peut être null si l'utilisateur n'est pas encore connu (ex: reset token).
- * Ne bloque jamais l'exécution — les erreurs sont loguées silencieusement.
+ * Creates a record in the `notifications` table after an email is sent.
+ * userId can be null if the user is not yet known (e.g., reset token).
+ * Never blocks execution — errors are logged silently.
  */
 async function createNotification(params: {
-  userId:   string;
-  type:     string;       // ex: 'BOOKING_CONFIRMATION', 'WELCOME', 'PASSWORD_RESET'
-  title:    string;
-  message:  string;
+  userId: string;
+  type: string; // ex: 'BOOKING_CONFIRMATION', 'WELCOME', 'PASSWORD_RESET'
+  title: string;
+  message: string;
   metadata?: Record<string, unknown>;
 }): Promise<void> {
   try {
     await prisma.notification.create({
       data: {
-        user_id:  params.userId,
-        type:     params.type,
-        title:    params.title,
-        message:  params.message,
-        metadata: params.metadata ? JSON.stringify(params.metadata) : '{}',
-        is_read:  false,
+        user_id: params.userId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        metadata: params.metadata ? JSON.stringify(params.metadata) : "{}",
+        is_read: false,
       },
     });
-    logger.debug(SVC, 'Notification created', { userId: params.userId, type: params.type });
+    logger.debug(SVC, "Notification created", {
+      userId: params.userId,
+      type: params.type,
+    });
   } catch (err: any) {
-    // Ne jamais bloquer l'envoi d'email à cause d'une erreur de notification
-    logger.warn(SVC, 'Failed to create notification record', { error: err?.message });
+    logger.warn(SVC, "Failed to create notification record", {
+      error: err?.message,
+    });
   }
 }
 
-// Configuration du transporteur email pour Gmail
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // Utilise le service Gmail prédéfini
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    pass: process.env.EMAIL_PASS,
   },
   tls: {
-    // Désactiver la vérification SSL pour le développement
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+  },
 });
 
-// Interface pour les options d'email
 interface EmailOptions {
   to: string;
   subject: string;
@@ -57,15 +69,16 @@ interface EmailOptions {
 }
 
 /**
- * Envoyer un email avec gestion d'erreur améliorée
+ * Core email sending function with enhanced error handling.
  */
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
   try {
-    // Vérifier que les variables d'environnement sont définies
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.warn('⚠️ Variables email non configurées. Email simulé.');
-      console.log(`📧 Email simulé à ${options.to}: ${options.subject}`);
-      console.log(`📋 Contenu: ${options.text || options.html?.substring(0, 100)}...`);
+      console.warn("Variables email non configurées. Email simulé.");
+      console.log(`Email simulé à ${options.to}: ${options.subject}`);
+      console.log(
+        `Contenu: ${options.text || options.html?.substring(0, 100)}...`,
+      );
       return;
     }
 
@@ -74,63 +87,66 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       to: options.to,
       subject: options.subject,
       text: options.text,
-      html: options.html
+      html: options.html,
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent to ${options.to}: ${info.messageId}`);
-    
-    // Pour Gmail, afficher le lien de prévisualisation en dev
-    if (process.env.NODE_ENV !== 'production') {
+    logger.info(SVC, "Email sent successfully", {
+      recipient: options.to,
+      messageId: info.messageId,
+      subject: options.subject,
+    });
+
+    if (process.env.NODE_ENV !== "production") {
       console.log(`📎 Preview: https://mail.google.com/mail/u/0/#inbox`);
     }
   } catch (error: any) {
-    console.error('❌ Email sending failed:', error.message);
-    
-    // Suggestions d'erreur courantes
-    if (error.code === 'EAUTH') {
-      console.error('🔐 Problème d\'authentification. Vérifiez:');
-      console.error('   1. L\'authentification à 2 facteurs est activée');
-      console.error('   2. Vous utilisez un mot de passe d\'application');
-      console.error('   3. Les informations sont correctes dans .env');
-      console.error('   4. Essayez de créer un nouveau mot de passe d\'application ici:');
-      console.error('      https://myaccount.google.com/apppasswords');
-    } else if (error.code === 'ESOCKET') {
-      console.error('🔌 Problème de connexion. Vérifiez:');
-      console.error('   1. Votre connexion Internet');
-      console.error('   2. Les paramètres SMTP sont corrects');
-      console.error('   3. Les ports ne sont pas bloqués par un firewall');
-    } else if (error.code === 'EENVELOPE') {
-      console.error('📧 Problème avec l\'adresse email:');
-      console.error(`   Destinataire: ${options.to}`);
-      console.error('   Vérifiez que l\'adresse email est valide');
-    }
-    
-    // Ne pas bloquer l'application en cas d'échec d'email
-    console.warn(`⚠️ Email non envoyé à ${options.to}, mais l'opération continue`);
-    
-    // En développement, on peut afficher ce qui aurait été envoyé
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('📝 Contenu qui aurait été envoyé:');
-      console.log(`   Sujet: ${options.subject}`);
-      console.log(`   HTML: ${options.html?.substring(0, 200)}...`);
+    logger.error(SVC, "Email sending failed", {
+      error: error.message,
+      code: error.code,
+      recipient: options.to,
+    });
+
+    if (error.code === "EAUTH") {
+      logger.warn(SVC, "uthentication error details", {
+        suggestions: [
+          "2-factor authentication must be enabled",
+          "Use an app password, not regular password",
+          "Verify credentials in .env",
+          "Generate new app password at: https://myaccount.google.com/apppasswords",
+        ],
+      });
+    } else if (error.code === "ESOCKET") {
+      logger.warn(SVC, "🔌 Connection error details", {
+        suggestions: [
+          "Check internet connection",
+          "Verify SMTP settings",
+          "Ensure ports are not blocked by firewall",
+        ],
+      });
+    } else if (error.code === "EENVELOPE") {
+      logger.warn(SVC, "Invalid recipient address", {
+        recipient: options.to,
+        suggestion: "Verify email address is valid",
+      });
     }
   }
 };
 
 /**
- * Email de confirmation de réservation
+ * Booking confirmation email
+ * Sent immediately after a successful booking
  */
 export const sendBookingConfirmation = async (
   email: string,
   bookingDetails: {
-    bookingId:   string;
+    bookingId: string;
     vehicleName: string;
-    startDate:   string;
-    endDate:     string;
-    totalPrice:  number;
-    userId:      string;   // ← ajouté pour la notification
-  }
+    startDate: string;
+    endDate: string;
+    totalPrice: number;
+    userId: string; // ← ajouté pour la notification
+  },
 ): Promise<void> => {
   const html = `
     <!DOCTYPE html>
@@ -277,7 +293,7 @@ export const sendBookingConfirmation = async (
           </p>
           
           <center>
-            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/bookings" class="button">
+            <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/bookings" class="button">
               👁️ Voir mes réservations
             </a>
           </center>
@@ -313,7 +329,7 @@ Détails de la réservation :
 - Prix total : ${bookingDetails.totalPrice.toLocaleString()} FCFA
 
 Vous pouvez suivre l'état de votre réservation depuis votre espace client :
-${process.env.FRONTEND_URL || 'http://localhost:3000'}/bookings
+${process.env.FRONTEND_URL || "http://localhost:3000"}/bookings
 
 Merci de votre confiance,
 
@@ -329,29 +345,33 @@ Email: contact@giagroup.net
     to: email,
     subject: `✅ Confirmation de réservation - ${bookingDetails.vehicleName}`,
     html,
-    text
+    text,
   });
 
-  // ── Persistance en base ──────────────────────────────────────────────────
+  // ── Persist notification ──────────────────────────────────────────────────
   await createNotification({
-    userId:  bookingDetails.userId,
-    type:    'BOOKING_CONFIRMATION',
-    title:   `Réservation confirmée — ${bookingDetails.vehicleName}`,
+    userId: bookingDetails.userId,
+    type: "BOOKING_CONFIRMATION",
+    title: `Réservation confirmée — ${bookingDetails.vehicleName}`,
     message: `Votre réservation du ${bookingDetails.startDate} au ${bookingDetails.endDate} a été enregistrée. Total : ${bookingDetails.totalPrice.toLocaleString()} FCFA.`,
     metadata: {
-      bookingId:   bookingDetails.bookingId,
+      bookingId: bookingDetails.bookingId,
       vehicleName: bookingDetails.vehicleName,
-      startDate:   bookingDetails.startDate,
-      endDate:     bookingDetails.endDate,
-      totalPrice:  bookingDetails.totalPrice,
+      startDate: bookingDetails.startDate,
+      endDate: bookingDetails.endDate,
+      totalPrice: bookingDetails.totalPrice,
     },
   });
 };
 
 /**
- * Email de bienvenue pour un nouvel utilisateur
+ * User welcome email
  */
-export const sendWelcomeEmail = async (email: string, name: string, userId: string): Promise<void> => {
+export const sendWelcomeEmail = async (
+  email: string,
+  name: string,
+  userId: string,
+): Promise<void> => {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -500,7 +520,7 @@ export const sendWelcomeEmail = async (email: string, name: string, userId: stri
           </div>
           
           <center>
-            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/vehicles" class="button">
+            <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/vehicles" class="button">
               🚀 Découvrir nos véhicules
             </a>
             
@@ -538,7 +558,7 @@ Votre compte a été créé avec succès et vous pouvez dès maintenant :
 - Bénéficier des meilleurs tarifs
 - Gérer vos réservations depuis votre espace personnel
 
-Commencez dès maintenant : ${process.env.FRONTEND_URL || 'http://localhost:3000'}/vehicles
+Commencez dès maintenant : ${process.env.FRONTEND_URL || "http://localhost:3000"}/vehicles
 
 Besoin d'aide ? Consultez notre FAQ ou contactez-nous.
 
@@ -554,27 +574,32 @@ L'équipe GIA Vehicle Booking
 
   await sendEmail({
     to: email,
-    subject: '🎉 Bienvenue sur GIA Vehicle Booking !',
+    subject: "🎉 Bienvenue sur GIA Vehicle Booking !",
     html,
-    text
+    text,
   });
 
-  // ── Persistance en base ──────────────────────────────────────────────────
+  // ── Persist notification ──────────────────────────────────────────────────
   await createNotification({
-    userId:  userId,
-    type:    'WELCOME',
-    title:   'Bienvenue sur GIA Vehicle Booking !',
+    userId: userId,
+    type: "WELCOME",
+    title: "Bienvenue sur GIA Vehicle Booking !",
     message: `Bonjour ${name}, votre compte a été créé avec succès. Découvrez notre flotte dès maintenant.`,
     metadata: { email },
   });
 };
 
 /**
- * Email de réinitialisation de mot de passe
+ * Welcome email for new users
  */
-export const sendPasswordResetEmail = async (email: string, resetToken: string, name: string, userId: string): Promise<void> => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
-  
+export const sendPasswordResetEmail = async (
+  email: string,
+  resetToken: string,
+  name: string,
+  userId: string,
+): Promise<void> => {
+  const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -686,40 +711,43 @@ export const sendPasswordResetEmail = async (email: string, resetToken: string, 
 
   await sendEmail({
     to: email,
-    subject: '🔐 Réinitialisation de votre mot de passe GIA Vehicle Booking',
-    html
+    subject: "🔐 Réinitialisation de votre mot de passe GIA Vehicle Booking",
+    html,
   });
 
-  // ── Persistance en base ──────────────────────────────────────────────────
+  // ── Persist notification ──────────────────────────────────────────────────
   await createNotification({
-    userId:  userId,
-    type:    'PASSWORD_RESET',
-    title:   'Réinitialisation de mot de passe',
+    userId: userId,
+    type: "PASSWORD_RESET",
+    title: "Réinitialisation de mot de passe",
     message: `Bonjour ${name}, un lien de réinitialisation de mot de passe a été envoyé à ${email}. Ce lien est valable 1 heure.`,
-    metadata: { email, expiresIn: '1h' },
+    metadata: { email, expiresIn: "1h" },
   });
 };
 
 /**
- * Email de confirmation de paiement
- * Envoyé après un paiement réussi
+ * Payment confirmation email
+ * Sent after successful payment processing
  */
 export const sendPaymentConfirmation = async (
   email: string,
   paymentDetails: {
-    userName:      string;
-    userId:        string;
+    userName: string;
+    userId: string;
     transactionId: string;
-    vehicleName:   string;
-    startDate:     string;
-    endDate:       string;
-    totalDays:     number;
-    amount:        number;
+    vehicleName: string;
+    startDate: string;
+    endDate: string;
+    totalDays: number;
+    amount: number;
     paymentMethod: string;
-    cardMasked:    string;
-  }
+    cardMasked: string;
+  },
 ): Promise<void> => {
-  const methodLabel = paymentDetails.paymentMethod === 'CARD' ? 'Carte bancaire' : paymentDetails.paymentMethod;
+  const methodLabel =
+    paymentDetails.paymentMethod === "CARD"
+      ? "Carte bancaire"
+      : paymentDetails.paymentMethod;
 
   const html = `
     <!DOCTYPE html>
@@ -882,7 +910,7 @@ export const sendPaymentConfirmation = async (
             
             <div class="detail-item">
               <div class="detail-label">Durée :</div>
-              <div class="detail-value">${paymentDetails.totalDays} jour${paymentDetails.totalDays > 1 ? 's' : ''}</div>
+              <div class="detail-value">${paymentDetails.totalDays} jour${paymentDetails.totalDays > 1 ? "s" : ""}</div>
             </div>
             
             <div class="detail-item">
@@ -906,7 +934,7 @@ export const sendPaymentConfirmation = async (
           </p>
           
           <center>
-            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard" class="button">
+            <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/dashboard" class="button">
               👁️ Voir mon ticket
             </a>
           </center>
@@ -940,7 +968,7 @@ Détails du paiement :
 - N° de transaction : ${paymentDetails.transactionId}
 - Véhicule : ${paymentDetails.vehicleName}
 - Période : ${paymentDetails.startDate} → ${paymentDetails.endDate}
-- Durée : ${paymentDetails.totalDays} jour${paymentDetails.totalDays > 1 ? 's' : ''}
+- Durée : ${paymentDetails.totalDays} jour${paymentDetails.totalDays > 1 ? "s" : ""}
 - Mode de paiement : ${methodLabel}
 - Carte : ${paymentDetails.cardMasked}
 
@@ -948,7 +976,7 @@ Détails du paiement :
 Votre transaction a été traitée de manière sécurisée. Conservez cet email comme justificatif de paiement.
 
 Votre ticket de paiement est disponible dans votre espace client :
-${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard
+${process.env.FRONTEND_URL || "http://localhost:3000"}/dashboard
 
 Merci de votre confiance,
 
@@ -964,19 +992,19 @@ Email: contact@giagroup.net
     to: email,
     subject: `✅ Paiement confirmé - ${paymentDetails.transactionId}`,
     html,
-    text
+    text,
   });
 
   // ── Persistance en base ──────────────────────────────────────────────────
   await createNotification({
-    userId:  paymentDetails.userId,
-    type:    'PAYMENT_CONFIRMATION',
-    title:   `Paiement confirmé — ${paymentDetails.vehicleName}`,
+    userId: paymentDetails.userId,
+    type: "PAYMENT_CONFIRMATION",
+    title: `Paiement confirmé — ${paymentDetails.vehicleName}`,
     message: `Votre paiement de ${paymentDetails.amount.toLocaleString()} FCFA a été traité avec succès. Transaction : ${paymentDetails.transactionId}`,
     metadata: {
       transactionId: paymentDetails.transactionId,
-      vehicleName:   paymentDetails.vehicleName,
-      amount:        paymentDetails.amount,
+      vehicleName: paymentDetails.vehicleName,
+      amount: paymentDetails.amount,
       paymentMethod: paymentDetails.paymentMethod,
     },
   });
@@ -988,5 +1016,5 @@ export default {
   sendBookingConfirmation,
   sendWelcomeEmail,
   sendPasswordResetEmail,
-  sendPaymentConfirmation
+  sendPaymentConfirmation,
 };
