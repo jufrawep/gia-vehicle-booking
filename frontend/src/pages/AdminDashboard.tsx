@@ -5,8 +5,9 @@ import {
   FaUsers, FaEdit, FaTrash, FaPlus, FaTimes, FaEye,
   FaBan, FaCheck, FaUserShield, FaUser,
   FaCheckCircle, FaTimesCircle, FaHourglass, FaFlag,
+  FaReceipt, FaFilter, FaSearch,
 } from 'react-icons/fa';
-import { bookingAPI, vehicleAPI, userAPI } from '../services/api';
+import { bookingAPI, vehicleAPI, userAPI, paymentAPI } from '../services/api';
 import {
   Booking, DashboardStats, Vehicle, User,
   VehicleFormData, VehicleCategory, VehicleStatus,
@@ -245,7 +246,7 @@ const VehicleDetailModal = ({ vehicle, onClose, onEdit }: {
 };
 
 // ─── AdminDashboard ───────────────────────────────────────────────────────────
-type TabType = 'bookings' | 'vehicles' | 'users';
+type TabType = 'bookings' | 'vehicles' | 'users' | 'payments';
 
 export const AdminDashboard = () => {
   const { t, lang } = useTranslation();
@@ -258,34 +259,73 @@ export const AdminDashboard = () => {
   const [loading,  setLoading]  = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('bookings');
 
+  // ── Payments state ──────────────────────────────────────────────────────────
+  const [payments,   setPayments]   = useState<any[]>([]);
+  const [pmtLoading, setPmtLoading] = useState(false);
+  const [pmtFilters, setPmtFilters] = useState({ dateFrom: '', dateTo: '', status: '', paymentMethod: '' });
+
   const [vehicleModal,    setVehicleModal]    = useState<'create' | 'edit' | 'view' | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchData = async (silent = false) => {
+// Dans AdminDashboard.tsx, remplacez le fetchData existant :
+
+const fetchData = async (silent = false) => {
+  try {
+    if (!silent) setLoading(true);
+    
+    // Lancer toutes les requêtes en parallèle, y compris les paiements
+    const [statsRes, bookingsRes, vehiclesRes, usersRes, paymentsRes] = await Promise.all([
+      bookingAPI.getStats(),
+      bookingAPI.getAll(),
+      vehicleAPI.getAll(),
+      userAPI.getAll(),
+      paymentAPI.getAll(), // ← Ajout des paiements
+    ]);
+    
+    setStats(statsRes.data.data);
+    setBookings(bookingsRes.data.data.bookings);
+    setVehicles(vehiclesRes.data.data.vehicles);
+    
+    const usersData = usersRes.data.data;
+    setUsers(Array.isArray(usersData) ? usersData : (usersData.users ?? []));
+    
+    // Initialiser les paiements même si l'onglet n'est pas actif
+    if (paymentsRes.data.data?.payments) {
+      setPayments(paymentsRes.data.data.payments);
+    }
+    
+    logger.info(CTX, 'Dashboard data loaded');
+  } catch {
+    if (!silent) toast.error(fr ? 'Erreur lors du chargement' : 'Error loading data');
+    logger.error(CTX, 'Failed to load dashboard data');
+  } finally {
+    if (!silent) setLoading(false);
+  }
+};
+  useEffect(() => { fetchData(); }, []);
+
+  // ── Payments fetch ──────────────────────────────────────────────────────────
+  const fetchPayments = async () => {
+    setPmtLoading(true);
     try {
-      if (!silent) setLoading(true);
-      const [statsRes, bookingsRes, vehiclesRes, usersRes] = await Promise.all([
-        bookingAPI.getStats(),
-        bookingAPI.getAll(),
-        vehicleAPI.getAll(),
-        userAPI.getAll(),
-      ]);
-      setStats(statsRes.data.data);
-      setBookings(bookingsRes.data.data.bookings);
-      setVehicles(vehiclesRes.data.data.vehicles);
-      const usersData = usersRes.data.data;
-      setUsers(Array.isArray(usersData) ? usersData : (usersData.users ?? []));
-      logger.info(CTX, 'Dashboard data loaded');
+      const res = await paymentAPI.getAll({
+        dateFrom:      pmtFilters.dateFrom      || undefined,
+        dateTo:        pmtFilters.dateTo        || undefined,
+        status:        pmtFilters.status        || undefined,
+        paymentMethod: pmtFilters.paymentMethod || undefined,
+      });
+      setPayments(res.data.data.payments);
     } catch {
-      if (!silent) toast.error(fr ? 'Erreur lors du chargement' : 'Error loading data');
-      logger.error(CTX, 'Failed to load dashboard data');
+      toast.error(fr ? 'Erreur chargement paiements' : 'Error loading payments');
     } finally {
-      if (!silent) setLoading(false);
+      setPmtLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    if (activeTab === 'payments') fetchPayments();
+  }, [activeTab]);
 
   // ── Booking actions ────────────────────────────────────────────────────────
   // Optimistic update : état local immédiat + sync silencieux en arrière-plan
@@ -455,6 +495,7 @@ export const AdminDashboard = () => {
                 { key: 'bookings', label: `${t('admin.bookings')} (${bookings.length})`, icon: <FaCalendar /> },
                 { key: 'vehicles', label: `${t('admin.vehicles')} (${vehicles.length})`, icon: <FaCar /> },
                 { key: 'users',    label: `${t('admin.users')} (${users.length})`,        icon: <FaUsers /> },
+                { key: 'payments', label: `${fr ? 'Paiements' : 'Payments'} (${payments.length})`, icon: <FaReceipt /> },
               ] as { key: TabType; label: string; icon: any }[]).map(tab => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                   className={`flex items-center gap-2 px-5 py-4 text-sm font-medium transition ${
@@ -707,6 +748,157 @@ export const AdminDashboard = () => {
               </table>
             </div>
           )}
+
+          {/* ── Payments (onglet ajouté) ── */}
+          {activeTab === 'payments' && (
+            <div>
+              {/* Barre de filtres */}
+              <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-3 items-end">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider mr-1">
+                  <FaFilter size={11} /> {fr ? 'Filtres' : 'Filters'}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500">{fr ? 'Du' : 'From'}</label>
+                  <input type="datetime-local"
+                    className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-primary-light"
+                    value={pmtFilters.dateFrom}
+                    onChange={e => setPmtFilters(p => ({ ...p, dateFrom: e.target.value }))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500">{fr ? 'Au' : 'To'}</label>
+                  <input type="datetime-local"
+                    className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-primary-light"
+                    value={pmtFilters.dateTo}
+                    onChange={e => setPmtFilters(p => ({ ...p, dateTo: e.target.value }))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500">{fr ? 'Statut' : 'Status'}</label>
+                  <select className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-primary-light"
+                    value={pmtFilters.status}
+                    onChange={e => setPmtFilters(p => ({ ...p, status: e.target.value }))}>
+                    <option value="">{fr ? 'Tous' : 'All'}</option>
+                    <option value="PENDING">{fr ? 'En attente' : 'Pending'}</option>
+                    <option value="COMPLETED">{fr ? 'Complété' : 'Completed'}</option>
+                    <option value="FAILED">{fr ? 'Échoué' : 'Failed'}</option>
+                    <option value="REFUNDED">{fr ? 'Remboursé' : 'Refunded'}</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500">{fr ? 'Moyen' : 'Method'}</label>
+                  <select className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-primary-light"
+                    value={pmtFilters.paymentMethod}
+                    onChange={e => setPmtFilters(p => ({ ...p, paymentMethod: e.target.value }))}>
+                    <option value="">{fr ? 'Tous' : 'All'}</option>
+                    <option value="CARD">{fr ? 'Carte' : 'Card'}</option>
+                    <option value="MOBILE_MONEY">Mobile Money</option>
+                    <option value="CASH">{fr ? 'Espèces' : 'Cash'}</option>
+                  </select>
+                </div>
+                <button onClick={fetchPayments} disabled={pmtLoading}
+                  className="flex items-center gap-2 bg-primary-dark text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-primary-light transition disabled:opacity-50">
+                  <FaSearch size={11} />
+                  {pmtLoading ? (fr ? 'Recherche...' : 'Searching...') : (fr ? 'Rechercher' : 'Search')}
+                </button>
+                {(pmtFilters.dateFrom || pmtFilters.dateTo || pmtFilters.status || pmtFilters.paymentMethod) && (
+                  <button
+                    onClick={() => { setPmtFilters({ dateFrom: '', dateTo: '', status: '', paymentMethod: '' }); setTimeout(fetchPayments, 50); }}
+                    className="text-xs text-gray-400 hover:text-red-500 underline transition">
+                    {fr ? 'Réinitialiser' : 'Reset'}
+                  </button>
+                )}
+              </div>
+
+              {/* Résumé */}
+              {!pmtLoading && payments.length > 0 && (
+                <div className="px-4 py-2 bg-primary-dark/5 border-b flex gap-6 text-xs text-gray-600">
+                  <span><strong>{payments.length}</strong> {fr ? 'paiement(s)' : 'payment(s)'}</span>
+                  <span>{fr ? 'Total encaissé :' : 'Total:'}{' '}
+                    <strong className="text-primary-dark">
+                      {payments.filter((p: any) => p.status === 'COMPLETED').reduce((s: number, p: any) => s + p.amount, 0).toLocaleString()} FCFA
+                    </strong>
+                  </span>
+                  <span>{fr ? 'Complétés :' : 'Completed:'}{' '}
+                    <strong className="text-green-600">{payments.filter((p: any) => p.status === 'COMPLETED').length}</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Tableau */}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {[fr?'Transaction':'Transaction', fr?'Client':'Customer', fr?'Véhicule':'Vehicle',
+                        fr?'Période':'Period', fr?'Montant':'Amount', fr?'Moyen':'Method',
+                        fr?'Statut':'Status', fr?'Date':'Date']
+                        .map(h => <th key={h} className={th}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {pmtLoading ? (
+                      <tr><td colSpan={8} className="text-center py-12">
+                        <div className="inline-block w-6 h-6 border-2 border-primary-dark border-t-transparent rounded-full animate-spin" />
+                      </td></tr>
+                    ) : payments.length === 0 ? (
+                      <tr><td colSpan={8} className="text-center py-12 text-gray-400 text-sm">
+                        <FaReceipt className="text-4xl mx-auto mb-2 opacity-30" />
+                        <p>{fr ? 'Aucun paiement trouvé' : 'No payments found'}</p>
+                      </td></tr>
+                    ) : payments.map((p: any) => {
+                      const stCls: Record<string, string> = {
+                        COMPLETED: 'bg-green-100 text-green-800',
+                        PENDING:   'bg-yellow-100 text-yellow-800',
+                        FAILED:    'bg-red-100 text-red-800',
+                        REFUNDED:  'bg-purple-100 text-purple-800',
+                      };
+                      const stLbl: Record<string, string> = {
+                        COMPLETED: fr ? 'Complété'   : 'Completed',
+                        PENDING:   fr ? 'En attente' : 'Pending',
+                        FAILED:    fr ? 'Échoué'     : 'Failed',
+                        REFUNDED:  fr ? 'Remboursé'  : 'Refunded',
+                      };
+                      const mLbl: Record<string, string> = {
+                        CARD:         fr ? 'Carte'   : 'Card',
+                        MOBILE_MONEY: 'Mobile Money',
+                        CASH:         fr ? 'Espèces' : 'Cash',
+                        SIMULATED:    fr ? 'Simulé'  : 'Simulated',
+                      };
+                      return (
+                        <tr key={p.id} className="hover:bg-gray-50 transition">
+                          <td className={td}>
+                            <p className="font-mono text-xs font-bold text-primary-dark">{p.transactionId ?? '—'}</p>
+                            <p className="text-xs text-gray-400">{String(p.id).slice(0, 8)}…</p>
+                          </td>
+                          <td className={td}>
+                            <p className="text-sm font-medium">{p.booking?.customer}</p>
+                            <p className="text-xs text-gray-400">{p.booking?.email}</p>
+                          </td>
+                          <td className={`${td} text-sm text-gray-700`}>{p.booking?.vehicle}</td>
+                          <td className={`${td} text-xs text-gray-600`}>
+                            <p>{p.booking?.startDate ? new Date(p.booking.startDate).toLocaleDateString('fr-FR') : '—'}</p>
+                            <p className="text-gray-400">→ {p.booking?.endDate ? new Date(p.booking.endDate).toLocaleDateString('fr-FR') : '—'}</p>
+                          </td>
+                          <td className={`${td} font-bold text-primary-dark text-sm`}>
+                            {Number(p.amount).toLocaleString()} {p.currency}
+                          </td>
+                          <td className={`${td} text-xs text-gray-600`}>{mLbl[p.paymentMethod] ?? p.paymentMethod}</td>
+                          <td className={td}>
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${stCls[p.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                              {stLbl[p.status] ?? p.status}
+                            </span>
+                          </td>
+                          <td className={`${td} text-xs text-gray-500`}>
+                            {new Date(p.createdAt).toLocaleString('fr-FR')}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
