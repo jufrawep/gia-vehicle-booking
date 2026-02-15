@@ -1,3 +1,18 @@
+/**
+ * @file  booking.controller.ts
+ * @desc  Booking management controller — CRUD + status updates + analytics.
+ *
+ * Corrections vs original:
+ *   - Replaced string statuses with imported BookingStatus enum (PENDING, CONFIRMED, etc.)
+ *   - Fixed snake_case/camelCase alignment (user_id, vehicle_id, total_price, etc.)
+ *   - Added proper RBAC checks (owner vs admin permissions)
+ *   - Optimized conflict detection with date overlap logic
+ *   - Added adminCreateBooking endpoint for admin-side booking creation
+ *   - All enum values UPPERCASE (CONFIRMED, CANCELLED, etc.)
+ *   - Added email notifications on booking creation
+ *   - Parallelized stats queries with Promise.all for performance
+ *   - Added proper type casting for query parameters
+ */
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import prisma from '../utils/prisma.util';
@@ -471,15 +486,6 @@ export const getBookingStats = asyncHandler(
 /**
  * ADMIN CREATE BOOKING (Admin Only)
  * Creates a booking on behalf of a user (requires ADMIN role + CREATE permission).
- *
- * Flow:
- * 1. Validates required fields (vehicleId, userId, startDate, endDate)
- * 2. Checks date logic (End date must be after Start date)
- * 3. Verifies vehicle and user existence in database
- * 4. Conflict detection: checks for overlapping PENDING or CONFIRMED bookings
- * 5. Calculates total price based on vehicle's daily rate and number of days
- * 6. Creates booking with CONFIRMED status (auto-confirmed for admin)
- * 7. Returns formatted booking data with vehicle and user details
  *
  * Security: Accessible only by users with ADMIN role and CREATE permission
  */
