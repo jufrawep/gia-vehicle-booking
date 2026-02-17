@@ -50,16 +50,15 @@ async function createNotification(params: {
   }
 }
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
+/*const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST || "smtp-relay.brevo.com",
+  port: parseInt(process.env.EMAIL_PORT || "587"),
+  secure: process.env.EMAIL_SECURE === "true",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
+});*/
 
 interface EmailOptions {
   to: string;
@@ -71,7 +70,7 @@ interface EmailOptions {
 /**
  * Core email sending function with enhanced error handling.
  */
-export const sendEmail = async (options: EmailOptions): Promise<void> => {
+/*export const sendEmail = async (options: EmailOptions): Promise<void> => {
   try {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       console.warn("Variables email non configurées. Email simulé.");
@@ -83,7 +82,7 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
     }
 
     const mailOptions = {
-      from: `"GIA Vehicle Booking" <${process.env.EMAIL_USER}>`,
+      from: `"GIA Vehicle Booking" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
       to: options.to,
       subject: options.subject,
       text: options.text,
@@ -130,6 +129,47 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
         suggestion: "Verify email address is valid",
       });
     }
+  }
+};*/
+
+export const sendEmail = async (options: EmailOptions): Promise<void> => {
+  try {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('RESEND_API_KEY manquante. Email simulé.');
+      console.log(`Email simulé à ${options.to}: ${options.subject}`);
+      return;
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: `GIA Vehicle Booking <${process.env.EMAIL_FROM || 'onboarding@resend.dev'}>`,
+        to:      [options.to],
+        subject: options.subject,
+        html:    options.html,
+        text:    options.text,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json() as any;
+      throw new Error(err.message || 'Resend API error');
+    }
+
+    logger.info(SVC, 'Email sent successfully', {
+      recipient: options.to,
+      subject:   options.subject,
+    });
+
+  } catch (error: any) {
+    logger.error(SVC, 'Email sending failed', {
+      error:     error.message,
+      recipient: options.to,
+    });
   }
 };
 
