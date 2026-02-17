@@ -339,3 +339,50 @@ export const getAllPayments = asyncHandler(
     });
   }
 );
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET USER PAYMENT
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/me
+ * Query params: dateFrom, dateTo, status, paymentMethod
+ */
+export const getMyPayments = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.id;
+
+    const payments = await prisma.payment.findMany({
+      where: {
+        booking: { user_id: userId },
+      },
+      include: {
+        booking: {
+          include: {
+            vehicle: { select: { brand: true, model: true } },
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    const formatted = payments.map(p => ({
+      id:            p.id,
+      transactionId: p.transaction_id,
+      amount:        Number(p.amount),
+      currency:      'FCFA',
+      paymentMethod: p.payment_method,
+      status:        p.status,
+      createdAt:     p.created_at.toISOString(),
+      booking: {
+        id:      p.booking.id,
+        vehicle: `${p.booking.vehicle.brand} ${p.booking.vehicle.model}`,
+      },
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: { payments: formatted },
+    });
+  }
+);
