@@ -148,7 +148,7 @@ export const processPayment = asyncHandler(
     // ── 7. Update booking payment status ────────────────────────────────────
     await prisma.booking.update({
       where: { id: bookingId },
-      data:  { payment_status: 'COMPLETED' },
+      data:  { payment_status: 'COMPLETED', status:'COMPLETED', },
     });
 
     // ── 8. Build ticket ─────────────────────────────────────────────────────
