@@ -7,7 +7,7 @@
  */
 
 import { Router }             from 'express';
-import { processPayment, getPaymentByBooking,getAllPayments } from '../controllers/payment.controller';
+import { processPayment, getPaymentByBooking,getAllPayments,getMyPayments } from '../controllers/payment.controller';
 import { protect }            from '../middleware/auth.middleware';
 
 const router = Router();
@@ -18,5 +18,6 @@ router.use(protect);
 router.post('/process',         processPayment);
 router.get('/:bookingId',       getPaymentByBooking);
 router.get('/', getAllPayments);
+router.get('/my',  getMyPayments);
 
 export default router;
