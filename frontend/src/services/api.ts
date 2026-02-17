@@ -12,7 +12,7 @@ import axios from 'axios';
 import { RegisterData, LoginData, VehicleFilters, BookingFormData } from '../types';
 import { logger } from '../utils/logger';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://gia-vehicle-booking-hbem.onrender.com';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -132,6 +132,8 @@ export const paymentAPI = {
     status?:       string;
     paymentMethod?: string;
   }) => api.get('/payments', { params: filters }),
+
+  getMine: () => api.get('/payments/my'),
 };
 
 export default api;
