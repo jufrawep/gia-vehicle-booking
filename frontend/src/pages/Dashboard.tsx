@@ -67,7 +67,7 @@ export const Dashboard = () => {
   const fetchPayments = async () => {
     setPmtLoading(true);
     try {
-      const res = await paymentAPI.getAll();
+      const res = await paymentAPI.getMine();
       setPayments(res.data.data.payments || []);
       await fetchBookings(true);
       logger.info(CTX, "Payments loaded", {
