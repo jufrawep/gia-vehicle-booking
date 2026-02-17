@@ -16,8 +16,8 @@ router.use(protect);
 
 // Specific routes before dynamic params
 router.post('/process',         processPayment);
-router.get('/:bookingId',       getPaymentByBooking);
 router.get('/', getAllPayments);
 router.get('/my',  getMyPayments);
+router.get('/:bookingId',getPaymentByBooking);
 
 export default router;
