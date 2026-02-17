@@ -132,6 +132,8 @@ export const paymentAPI = {
     status?:       string;
     paymentMethod?: string;
   }) => api.get('/payments', { params: filters }),
+
+  getMine: () => api.get('/payments/my'),
 };
 
 export default api;
